@@ -14,6 +14,7 @@ public sealed record CommandContext(
 /// <item><c>{f}</c> – alle ausgewählten Pfade (als eigenes Argument: ein Argument je Datei)</item>
 /// <item><c>{s}</c> – erster ausgewählter Pfad</item>
 /// <item><c>{n}</c> – Name des ersten ausgewählten Eintrags</item>
+/// <item><c>{o}</c> – Namen aller ausgewählten Einträge ohne Pfad (wie <c>{f}</c>)</item>
 /// <item><c>{p}</c> – Ordner des aktiven Fensters (Quelle)</item>
 /// <item><c>{d}</c> – Ordner des anderen Fensters (Ziel)</item>
 /// </list>
@@ -21,7 +22,7 @@ public sealed record CommandContext(
 /// </summary>
 public static class CommandTemplate
 {
-    private static readonly string[] SelectionPlaceholders = ["{f}", "{s}", "{n}"];
+    private static readonly string[] SelectionPlaceholders = ["{f}", "{o}", "{s}", "{n}"];
 
     public static bool UsesSelection(string template) =>
         SelectionPlaceholders.Any(p => template.Contains(p, StringComparison.Ordinal));
@@ -29,26 +30,36 @@ public static class CommandTemplate
     public static IReadOnlyList<string> Expand(string template, CommandContext context)
     {
         var first = context.SelectedPaths.FirstOrDefault() ?? string.Empty;
+        var names = context.SelectedPaths.Select(NameOf).ToList();
         var result = new List<string>();
 
         foreach (var token in Tokenize(template))
         {
-            if (token == "{f}")
+            switch (token)
             {
-                result.AddRange(context.SelectedPaths);
-                continue;
+                case "{f}":
+                    result.AddRange(context.SelectedPaths);
+                    continue;
+                case "{o}":
+                    result.AddRange(names);
+                    continue;
             }
 
             result.Add(token
-                .Replace("{f}", string.Join(' ', context.SelectedPaths.Select(p => $"\"{p}\"")), StringComparison.Ordinal)
+                .Replace("{f}", Quoted(context.SelectedPaths), StringComparison.Ordinal)
+                .Replace("{o}", Quoted(names), StringComparison.Ordinal)
                 .Replace("{s}", first, StringComparison.Ordinal)
-                .Replace("{n}", Path.GetFileName(Path.TrimEndingDirectorySeparator(first)), StringComparison.Ordinal)
+                .Replace("{n}", NameOf(first), StringComparison.Ordinal)
                 .Replace("{p}", context.SourceDirectory, StringComparison.Ordinal)
                 .Replace("{d}", context.DestinationDirectory, StringComparison.Ordinal));
         }
 
         return result;
     }
+
+    private static string NameOf(string path) => Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+
+    private static string Quoted(IEnumerable<string> values) => string.Join(' ', values.Select(v => $"\"{v}\""));
 
     public static IReadOnlyList<string> Tokenize(string text)
     {

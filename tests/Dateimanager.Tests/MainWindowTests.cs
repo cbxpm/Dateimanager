@@ -3,6 +3,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Dateimanager.ViewModels;
 using Dateimanager.Views;
 
@@ -41,6 +42,57 @@ public sealed class MainWindowTests : IDisposable
 
         var bank = window.FindControl<ItemsControl>("ButtonBankItems")!;
         Assert.Equal(16, bank.GetRealizedContainers().Count());
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task CycleButton_SwitchesBankAndOffersBankList()
+    {
+        var window = await ShowAsync(_env.Temp.Path, _env.Temp.Path);
+        var cycle = window.FindControl<Button>("BankCycleButton")!;
+        var bank = window.FindControl<ItemsControl>("ButtonBankItems")!;
+
+        cycle.Command!.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("Extras", _env.ViewModel.ButtonBar.CurrentBank.Name);
+        Assert.Equal(8, bank.GetRealizedContainers().Count());
+
+        cycle.ContextMenu!.Open(cycle);
+        Dispatcher.UIThread.RunJobs();
+        var items = cycle.ContextMenu.GetRealizedContainers().OfType<MenuItem>().ToList();
+        Assert.Equal(["Standard", "Extras"], items.Select(i => i.Header));
+        Assert.True(items[1].IsChecked);
+
+        items[0].Command!.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("Standard", _env.ViewModel.ButtonBar.CurrentBank.Name);
+        Assert.Equal(16, bank.GetRealizedContainers().Count());
+        cycle.ContextMenu.Close();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task ButtonContextMenu_OffersMoveToOtherBank()
+    {
+        var window = await ShowAsync(_env.Temp.Path, _env.Temp.Path);
+        var bank = window.FindControl<ItemsControl>("ButtonBankItems")!;
+        var button = bank.GetRealizedContainers().Select(c => c.FindDescendantOfType<Button>()).First()!;
+
+        button.ContextMenu!.Open(button);
+        Dispatcher.UIThread.RunJobs();
+        var moveMenu = button.ContextMenu.GetRealizedContainers().OfType<MenuItem>()
+            .Single(i => (string?)i.Header == "In Knopfbank verschieben");
+        moveMenu.Open();
+        Dispatcher.UIThread.RunJobs();
+
+        var target = moveMenu.GetRealizedContainers().OfType<MenuItem>().Single();
+        Assert.Equal("Extras", target.Header);
+        target.Command!.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("Verschieben", _env.ViewModel.ButtonBar.CurrentBank.Buttons[0].Label);
+        button.ContextMenu.Close();
         window.Close();
     }
 

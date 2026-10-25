@@ -27,6 +27,8 @@ public enum BuiltInCommand
     SyncPanes,
     ToggleHidden,
     Open,
+    NextBank,
+    PreviousBank,
 }
 
 /// <summary>Ein Knopf der Knopfleiste (wie in Directory Opus).</summary>
@@ -87,7 +89,17 @@ public static class BuiltInCommands
         [BuiltInCommand.SyncPanes] = "Anderes Fenster gleichsetzen",
         [BuiltInCommand.ToggleHidden] = "Versteckte Dateien ein/aus",
         [BuiltInCommand.Open] = "Öffnen",
+        [BuiltInCommand.NextBank] = "Nächste Knopfbank",
+        [BuiltInCommand.PreviousBank] = "Vorherige Knopfbank",
     };
+}
+
+/// <summary>Eine Knopfbank: eine benannte Gruppe von Knöpfen, zwischen denen umgeschaltet werden kann.</summary>
+public sealed class ButtonBankDefinition
+{
+    public string Name { get; set; } = "Bank";
+    public int Columns { get; set; } = 8;
+    public List<ButtonDefinition> Buttons { get; set; } = [];
 }
 
 public static class DefaultButtons
@@ -100,30 +112,54 @@ public static class DefaultButtons
     private const string White = "#FFFFFF";
     private const string Black = "#000000";
 
-    public static List<ButtonDefinition> Create(Func<string, bool>? isOnPath = null)
+    public static List<ButtonBankDefinition> CreateBanks(Func<string, bool>? isOnPath = null)
     {
         isOnPath ??= IsOnPath;
         return
         [
-            ButtonDefinition.BuiltIn("Kopieren", BuiltInCommand.Copy, Blue, White),
-            ButtonDefinition.BuiltIn("Verschieben", BuiltInCommand.Move, Blue, White),
-            ButtonDefinition.BuiltIn("Umbenennen", BuiltInCommand.Rename, Blue, White),
-            ButtonDefinition.BuiltIn("Neuer Ordner", BuiltInCommand.NewFolder, Blue, White),
-            ButtonDefinition.BuiltIn("Löschen", BuiltInCommand.Delete, Red, White),
-            ButtonDefinition.BuiltIn("Alles", BuiltInCommand.SelectAll, Grey, Black),
-            ButtonDefinition.BuiltIn("Nichts", BuiltInCommand.SelectNone, Grey, Black),
-            ButtonDefinition.BuiltIn("Umkehren", BuiltInCommand.InvertSelection, Grey, Black),
-
-            ButtonDefinition.BuiltIn("Eltern", BuiltInCommand.Parent, Green, White),
-            ButtonDefinition.BuiltIn("Wurzel", BuiltInCommand.Root, Green, White),
-            ButtonDefinition.BuiltIn("Tauschen", BuiltInCommand.SwapPanes, Green, White),
-            ButtonDefinition.BuiltIn("Gleich", BuiltInCommand.SyncPanes, Green, White),
-            ButtonDefinition.BuiltIn("Versteckt", BuiltInCommand.ToggleHidden, Grey, Black),
-            ButtonDefinition.BuiltIn("Aktualisieren", BuiltInCommand.Refresh, Grey, Black),
-            Terminal(isOnPath) with { Label = "Terminal", Background = Orange, Foreground = Black },
-            Editor(isOnPath) with { Label = "Editor", Background = Orange, Foreground = Black },
+            new ButtonBankDefinition { Name = "Standard", Columns = 8, Buttons = CreateStandard(isOnPath) },
+            new ButtonBankDefinition { Name = "Extras", Columns = 8, Buttons = CreateExtras(isOnPath) },
         ];
     }
+
+    private static List<ButtonDefinition> CreateStandard(Func<string, bool> isOnPath) =>
+    [
+        ButtonDefinition.BuiltIn("Kopieren", BuiltInCommand.Copy, Blue, White),
+        ButtonDefinition.BuiltIn("Verschieben", BuiltInCommand.Move, Blue, White),
+        ButtonDefinition.BuiltIn("Umbenennen", BuiltInCommand.Rename, Blue, White),
+        ButtonDefinition.BuiltIn("Neuer Ordner", BuiltInCommand.NewFolder, Blue, White),
+        ButtonDefinition.BuiltIn("Löschen", BuiltInCommand.Delete, Red, White),
+        ButtonDefinition.BuiltIn("Alles", BuiltInCommand.SelectAll, Grey, Black),
+        ButtonDefinition.BuiltIn("Nichts", BuiltInCommand.SelectNone, Grey, Black),
+        ButtonDefinition.BuiltIn("Umkehren", BuiltInCommand.InvertSelection, Grey, Black),
+
+        ButtonDefinition.BuiltIn("Eltern", BuiltInCommand.Parent, Green, White),
+        ButtonDefinition.BuiltIn("Wurzel", BuiltInCommand.Root, Green, White),
+        ButtonDefinition.BuiltIn("Tauschen", BuiltInCommand.SwapPanes, Green, White),
+        ButtonDefinition.BuiltIn("Gleich", BuiltInCommand.SyncPanes, Green, White),
+        ButtonDefinition.BuiltIn("Versteckt", BuiltInCommand.ToggleHidden, Grey, Black),
+        ButtonDefinition.BuiltIn("Aktualisieren", BuiltInCommand.Refresh, Grey, Black),
+        Terminal(isOnPath) with { Label = "Terminal", Background = Orange, Foreground = Black },
+        Editor(isOnPath) with { Label = "Editor", Background = Orange, Foreground = Black },
+    ];
+
+    // tar ist unter Linux, macOS und Windows 10+ vorhanden und kann auch ZIP-Dateien entpacken
+    private static List<ButtonDefinition> CreateExtras(Func<string, bool> isOnPath) =>
+    [
+        ButtonDefinition.BuiltIn("Zurück", BuiltInCommand.Back, Green, White),
+        ButtonDefinition.BuiltIn("Vorwärts", BuiltInCommand.Forward, Green, White),
+        ButtonDefinition.BuiltIn("Öffnen", BuiltInCommand.Open, Blue, White),
+        ButtonDefinition.BuiltIn("Endgültig löschen", BuiltInCommand.DeletePermanently, Red, White),
+        ButtonDefinition.External("Archivieren", "tar", "-czf \"{d}/{n}.tar.gz\" {o}", Orange, Black),
+        ButtonDefinition.External("Entpacken", "tar", "-xf {s} -C {d}", Orange, Black, runPerFile: true),
+        SystemExplorer() with { Label = "System-Explorer", Background = Orange, Foreground = Black },
+        Terminal(isOnPath) with { Label = "Terminal", Background = Orange, Foreground = Black },
+    ];
+
+    private static ButtonDefinition SystemExplorer() =>
+        OperatingSystem.IsWindows() ? ButtonDefinition.External("", "explorer.exe", "{p}", "", "")
+        : OperatingSystem.IsMacOS() ? ButtonDefinition.External("", "open", "{p}", "", "")
+        : ButtonDefinition.External("", "xdg-open", "{p}", "", "");
 
     // Arbeitsverzeichnis externer Programme ist immer der Ordner des aktiven Fensters
     private static ButtonDefinition Terminal(Func<string, bool> isOnPath)

@@ -8,8 +8,43 @@ public sealed class AppSettings
     public string? LeftPath { get; set; }
     public string? RightPath { get; set; }
     public bool ShowHidden { get; set; }
-    public int ButtonColumns { get; set; } = 8;
-    public List<ButtonDefinition> Buttons { get; set; } = DefaultButtons.Create();
+    public List<ButtonBankDefinition> Banks { get; set; } = DefaultButtons.CreateBanks();
+    public int ActiveBank { get; set; }
+
+    // Ältere Versionen kannten nur eine Knopfleiste; wird beim Laden in eine Bank übernommen
+    [JsonPropertyName("buttons")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ButtonDefinition>? LegacyButtons { get; set; }
+
+    [JsonPropertyName("buttonColumns")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LegacyButtonColumns { get; set; }
+
+    internal void Normalize()
+    {
+        if (LegacyButtons is not null)
+        {
+            var defaults = DefaultButtons.CreateBanks();
+            defaults[0].Buttons = LegacyButtons;
+            defaults[0].Columns = LegacyButtonColumns ?? defaults[0].Columns;
+            Banks = defaults;
+            LegacyButtons = null;
+            LegacyButtonColumns = null;
+        }
+
+        Banks = Banks?.Where(b => b is not null).ToList() ?? [];
+        if (Banks.Count == 0)
+            Banks = DefaultButtons.CreateBanks();
+
+        foreach (var bank in Banks)
+        {
+            bank.Name = string.IsNullOrWhiteSpace(bank.Name) ? "Bank" : bank.Name;
+            bank.Columns = Math.Clamp(bank.Columns, 1, 20);
+            bank.Buttons ??= [];
+        }
+
+        ActiveBank = Math.Clamp(ActiveBank, 0, Banks.Count - 1);
+    }
 }
 
 /// <summary>Lädt und speichert die Einstellungen als JSON-Datei.</summary>
@@ -34,8 +69,7 @@ public sealed class SettingsStore(string filePath)
             if (File.Exists(FilePath) &&
                 JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), JsonOptions) is { } settings)
             {
-                settings.Buttons ??= DefaultButtons.Create();
-                settings.ButtonColumns = Math.Clamp(settings.ButtonColumns, 1, 20);
+                settings.Normalize();
                 return settings;
             }
         }

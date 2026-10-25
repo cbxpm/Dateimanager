@@ -8,6 +8,25 @@
         Width="1280" Height="760" MinWidth="800" MinHeight="450"
         Title="Dateimanager">
 
+    <Window.Resources>
+        <StreamGeometry x:Key="CycleIcon">M12,6V9L16,5L12,1V4A8,8 0 0,0 4,12C4,13.57 4.46,15.03 5.24,16.26L6.7,14.8C6.25,13.97 6,13 6,12A6,6 0 0,1 12,6M18.76,7.74L17.3,9.2C17.74,10.04 18,11 18,12A6,6 0 0,1 12,18V15L8,19L12,23V20A8,8 0 0,0 20,12C20,10.43 19.54,8.97 18.76,7.74Z</StreamGeometry>
+
+        <!-- Menüeinträge für die Liste der Knopfbänke -->
+        <ControlTheme x:Key="BankMenuItemTheme" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                      x:DataType="vm:ButtonBankViewModel">
+            <Setter Property="Header" Value="{Binding Name}" />
+            <Setter Property="Command" Value="{Binding SelectCommand}" />
+            <Setter Property="ToggleType" Value="Radio" />
+            <Setter Property="IsChecked" Value="{Binding IsCurrent, Mode=OneWay}" />
+        </ControlTheme>
+
+        <ControlTheme x:Key="MoveTargetMenuItemTheme" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                      x:DataType="vm:BankMoveTarget">
+            <Setter Property="Header" Value="{Binding Name}" />
+            <Setter Property="Command" Value="{Binding MoveCommand}" />
+        </ControlTheme>
+    </Window.Resources>
+
     <Window.KeyBindings>
         <KeyBinding Gesture="F2" Command="{Binding RenameCommand}" />
         <KeyBinding Gesture="F5" Command="{Binding CopyToOtherCommand}" />
@@ -21,6 +40,8 @@
         <KeyBinding Gesture="Alt+Left" Command="{Binding GoBackCommand}" />
         <KeyBinding Gesture="Alt+Right" Command="{Binding GoForwardCommand}" />
         <KeyBinding Gesture="Alt+Up" Command="{Binding GoUpCommand}" />
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding ButtonBar.NextBankCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+B" Command="{Binding ButtonBar.PreviousBankCommand}" />
     </Window.KeyBindings>
 
     <DockPanel>
@@ -54,61 +75,111 @@
                     <MenuItem Header="Aktualisieren" Command="{Binding RefreshCommand}" InputGesture="Ctrl+R" />
                 </MenuItem>
                 <MenuItem Header="_Knöpfe">
-                    <MenuItem Header="Neuer Knopf …" Command="{Binding ButtonBank.AddCommand}" />
+                    <MenuItem Header="Nächste Knopfbank" Command="{Binding ButtonBar.NextBankCommand}" InputGesture="Ctrl+B" />
+                    <MenuItem Header="Vorherige Knopfbank" Command="{Binding ButtonBar.PreviousBankCommand}" InputGesture="Ctrl+Shift+B" />
+                    <MenuItem Header="Knopfbank wählen" ItemsSource="{Binding ButtonBar.Banks}"
+                              ItemContainerTheme="{StaticResource BankMenuItemTheme}" />
+                    <Separator />
+                    <MenuItem Header="Neue Knopfbank …" Command="{Binding ButtonBar.AddBankCommand}" />
+                    <MenuItem Header="Knopfbank umbenennen …" Command="{Binding ButtonBar.RenameBankCommand}" />
+                    <MenuItem Header="Knopfbank duplizieren" Command="{Binding ButtonBar.DuplicateBankCommand}" />
+                    <MenuItem Header="Knopfbank nach vorn" Command="{Binding ButtonBar.MoveBankLeftCommand}" />
+                    <MenuItem Header="Knopfbank nach hinten" Command="{Binding ButtonBar.MoveBankRightCommand}" />
+                    <MenuItem Header="Knopfbank löschen …" Command="{Binding ButtonBar.RemoveBankCommand}" />
+                    <Separator />
+                    <MenuItem Header="Neuer Knopf …" Command="{Binding ButtonBar.AddButtonCommand}" />
                     <MenuItem Header="Spalten">
-                        <MenuItem Header="4" Command="{Binding ButtonBank.SetColumnsCommand}">
+                        <MenuItem Header="4" Command="{Binding ButtonBar.SetColumnsCommand}">
                             <MenuItem.CommandParameter><x:Int32>4</x:Int32></MenuItem.CommandParameter>
                         </MenuItem>
-                        <MenuItem Header="6" Command="{Binding ButtonBank.SetColumnsCommand}">
+                        <MenuItem Header="6" Command="{Binding ButtonBar.SetColumnsCommand}">
                             <MenuItem.CommandParameter><x:Int32>6</x:Int32></MenuItem.CommandParameter>
                         </MenuItem>
-                        <MenuItem Header="8" Command="{Binding ButtonBank.SetColumnsCommand}">
+                        <MenuItem Header="8" Command="{Binding ButtonBar.SetColumnsCommand}">
                             <MenuItem.CommandParameter><x:Int32>8</x:Int32></MenuItem.CommandParameter>
                         </MenuItem>
-                        <MenuItem Header="10" Command="{Binding ButtonBank.SetColumnsCommand}">
+                        <MenuItem Header="10" Command="{Binding ButtonBar.SetColumnsCommand}">
                             <MenuItem.CommandParameter><x:Int32>10</x:Int32></MenuItem.CommandParameter>
                         </MenuItem>
-                        <MenuItem Header="12" Command="{Binding ButtonBank.SetColumnsCommand}">
+                        <MenuItem Header="12" Command="{Binding ButtonBar.SetColumnsCommand}">
                             <MenuItem.CommandParameter><x:Int32>12</x:Int32></MenuItem.CommandParameter>
                         </MenuItem>
                     </MenuItem>
                     <Separator />
-                    <MenuItem Header="Standardknöpfe wiederherstellen …" Command="{Binding ButtonBank.ResetToDefaultsCommand}" />
+                    <MenuItem Header="Standardknöpfe wiederherstellen …" Command="{Binding ButtonBar.ResetToDefaultsCommand}" />
                 </MenuItem>
             </Menu>
         </DockPanel>
 
-        <!-- Knopfleiste wie bei Directory Opus: Rechtsklick auf einen Knopf zum Bearbeiten -->
+        <!-- Knopfleiste wie bei Directory Opus: links der Umschalter für die Knopfbänke,
+             Rechtsklick auf einen Knopf zum Bearbeiten -->
         <Border DockPanel.Dock="Bottom" Padding="4"
                 Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
-            <ItemsControl x:Name="ButtonBankItems" ItemsSource="{Binding ButtonBank.Buttons}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid Columns="{Binding ButtonBank.Columns}" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:CommandButtonViewModel">
-                        <Button Classes="bank" Content="{Binding Label}"
-                                Background="{Binding Background}" Foreground="{Binding Foreground}"
-                                Command="{Binding ExecuteCommand}" ToolTip.Tip="{Binding ToolTip}"
-                                Focusable="False">
-                            <Button.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Bearbeiten …" Command="{Binding EditCommand}" />
-                                    <MenuItem Header="Neuer Knopf dahinter …" Command="{Binding AddAfterCommand}" />
-                                    <MenuItem Header="Duplizieren" Command="{Binding DuplicateCommand}" />
-                                    <Separator />
-                                    <MenuItem Header="Nach links" Command="{Binding MoveLeftCommand}" />
-                                    <MenuItem Header="Nach rechts" Command="{Binding MoveRightCommand}" />
-                                    <Separator />
-                                    <MenuItem Header="Entfernen …" Command="{Binding RemoveCommand}" />
-                                </ContextMenu>
-                            </Button.ContextMenu>
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <DockPanel>
+                <Button DockPanel.Dock="Left" x:Name="BankCycleButton" Classes="cycle"
+                        Command="{Binding ButtonBar.NextBankCommand}"
+                        ToolTip.Tip="Knopfbank wechseln (Strg+B) – Rechtsklick: Bank wählen"
+                        Focusable="False">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                        <PathIcon Data="{StaticResource CycleIcon}" Width="16" Height="16" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ButtonBar.CurrentBank.Name}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ButtonBar.BankPosition, StringFormat='Bank {0}'}"
+                                       FontSize="11" Opacity="0.7" />
+                        </StackPanel>
+                    </Grid>
+                    <Button.ContextMenu>
+                        <ContextMenu ItemsSource="{Binding ButtonBar.Banks}"
+                                     ItemContainerTheme="{StaticResource BankMenuItemTheme}" />
+                    </Button.ContextMenu>
+                </Button>
+
+                <Panel Background="Transparent">
+                    <Panel.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Neuer Knopf …" Command="{Binding ButtonBar.AddButtonCommand}" />
+                            <MenuItem Header="Neue Knopfbank …" Command="{Binding ButtonBar.AddBankCommand}" />
+                        </ContextMenu>
+                    </Panel.ContextMenu>
+
+                    <TextBlock Text="Leere Knopfbank – Rechtsklick hier, um einen Knopf hinzuzufügen."
+                               IsVisible="{Binding ButtonBar.CurrentBank.IsEmpty}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" Margin="8" />
+
+                    <ItemsControl x:Name="ButtonBankItems" ItemsSource="{Binding ButtonBar.CurrentBank.Buttons}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="{Binding ButtonBar.CurrentBank.Columns}" Rows="{Binding ButtonBar.Rows}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CommandButtonViewModel">
+                                <Button Classes="bank" Content="{Binding Label}"
+                                        Background="{Binding Background}" Foreground="{Binding Foreground}"
+                                        Command="{Binding ExecuteCommand}" ToolTip.Tip="{Binding ToolTip}"
+                                        Focusable="False">
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Bearbeiten …" Command="{Binding EditCommand}" />
+                                            <MenuItem Header="Neuer Knopf dahinter …" Command="{Binding AddAfterCommand}" />
+                                            <MenuItem Header="Duplizieren" Command="{Binding DuplicateCommand}" />
+                                            <Separator />
+                                            <MenuItem Header="Nach links" Command="{Binding MoveLeftCommand}" />
+                                            <MenuItem Header="Nach rechts" Command="{Binding MoveRightCommand}" />
+                                            <MenuItem Header="In Knopfbank verschieben" ItemsSource="{Binding MoveTargets}"
+                                                      IsVisible="{Binding HasMoveTargets}"
+                                                      ItemContainerTheme="{StaticResource MoveTargetMenuItemTheme}" />
+                                            <Separator />
+                                            <MenuItem Header="Entfernen …" Command="{Binding RemoveCommand}" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Panel>
+            </DockPanel>
         </Border>
 
         <Grid ColumnDefinitions="*,6,*" Margin="4,0,4,2">

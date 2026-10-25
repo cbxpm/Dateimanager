@@ -36,12 +36,12 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         ActivePane = Left;
         ShowHidden = settings.ShowHidden;
 
-        ButtonBank = new ButtonBankViewModel(settings, SaveSettings, dialogs, ExecuteButtonAsync);
+        ButtonBar = new ButtonBarViewModel(settings, SaveSettings, dialogs, ExecuteButtonAsync);
     }
 
     public PaneViewModel Left { get; }
     public PaneViewModel Right { get; }
-    public ButtonBankViewModel ButtonBank { get; }
+    public ButtonBarViewModel ButtonBar { get; }
 
     [ObservableProperty]
     public partial PaneViewModel ActivePane { get; set; }
@@ -104,6 +104,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             case BuiltInCommand.SelectNone: ActivePane.SelectNone(); break;
             case BuiltInCommand.InvertSelection: ActivePane.InvertSelection(); break;
             case BuiltInCommand.ToggleHidden: ShowHidden = !ShowHidden; break;
+            case BuiltInCommand.NextBank: ButtonBar.NextBankCommand.Execute(null); break;
+            case BuiltInCommand.PreviousBank: ButtonBar.PreviousBankCommand.Execute(null); break;
         }
 
         return Task.CompletedTask;

@@ -65,7 +65,7 @@
             <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" TextWrapping="Wrap" Opacity="0.75"
                        FontSize="12">
                 <Run Text="Platzhalter:" FontWeight="SemiBold" />
-                <Run Text="{}{f} ausgewählte Dateien · {s} erste Datei · {n} ihr Name · {p} Ordner des aktiven Fensters · {d} Ordner des anderen Fensters. Das Programm startet im Ordner des aktiven Fensters." />
+                <Run Text="{}{f} ausgewählte Dateien · {o} nur ihre Namen · {s} erste Datei · {n} ihr Name · {p} Ordner des aktiven Fensters · {d} Ordner des anderen Fensters. Das Programm startet im Ordner des aktiven Fensters." />
             </TextBlock>
         </Grid>
 

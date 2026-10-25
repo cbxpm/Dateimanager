@@ -60,7 +60,7 @@ internal sealed class TestEnvironment : IDisposable
 {
     public TestEnvironment()
     {
-        Settings = new AppSettings { Buttons = DefaultButtons.Create(_ => false) };
+        Settings = new AppSettings { Banks = DefaultButtons.CreateBanks(_ => false) };
         Store = new SettingsStore(Temp.Combine("config/settings.json"));
         ViewModel = new MainWindowViewModel(new FileSystemService(), Trash, Dialogs, Shell, Store, Settings,
             [new Location("Test", Temp.Path, LocationKind.Folder)]);

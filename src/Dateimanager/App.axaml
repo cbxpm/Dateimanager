@@ -32,6 +32,19 @@
             <Setter Property="Foreground" Value="#E3A33A" />
         </Style>
 
+        <!-- Umschalter für Knopfbänke (wie ein Cycle-Gadget der Amiga-Workbench) -->
+        <Style Selector="Button.cycle">
+            <Setter Property="Width" Value="150" />
+            <Setter Property="Margin" Value="2,2,6,2" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#50000000" />
+        </Style>
+
         <!-- Knopfleiste: Farben bleiben auch beim Überfahren/Drücken erhalten -->
         <Style Selector="Button.bank">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
