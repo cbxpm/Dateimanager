@@ -1,0 +1,127 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Dateimanager.ViewModels"
+        x:Class="Dateimanager.Views.ButtonEditorWindow"
+        x:DataType="vm:ButtonEditorViewModel"
+        Title="Knopf bearbeiten"
+        Width="640" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+
+    <Window.Styles>
+        <Style Selector="Button.swatch">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="BorderBrush" Value="#808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="2" />
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Margin="20" Spacing="12">
+        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+            <TextBlock Classes="label" Text="Beschriftung" />
+            <TextBox Grid.Column="1" x:Name="LabelBox" Text="{Binding Label}" />
+
+            <TextBlock Grid.Row="1" Classes="label" Text="Aktion" />
+            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="16">
+                <RadioButton GroupName="kind" Content="Eingebauter Befehl" IsChecked="{Binding IsBuiltIn}" />
+                <RadioButton GroupName="kind" Content="Externes Programm" IsChecked="{Binding IsExternal}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid ColumnDefinitions="110,*" IsVisible="{Binding IsBuiltIn}">
+            <TextBlock Classes="label" Text="Befehl" />
+            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding Commands}" SelectedItem="{Binding SelectedCommand}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CommandOption">
+                        <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+
+        <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10"
+              IsVisible="{Binding IsExternal}">
+            <TextBlock Classes="label" Text="Programm" />
+            <TextBox Grid.Column="1" Text="{Binding Program}" PlaceholderText="z. B. notepad.exe oder /usr/bin/gimp" />
+            <Button Grid.Column="2" Content="…" Margin="6,0,0,0" Click="OnBrowseProgram"
+                    ToolTip.Tip="Programm auswählen" />
+
+            <TextBlock Grid.Row="1" Classes="label" Text="Argumente" />
+            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Arguments}"
+                     FontFamily="{DynamicResource ContentControlThemeFontFamily}"
+                     PlaceholderText="z. B. -o {d} {f}" />
+
+            <CheckBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                      Content="Für jede ausgewählte Datei einzeln starten" IsChecked="{Binding RunPerFile}" />
+
+            <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" TextWrapping="Wrap" Opacity="0.75"
+                       FontSize="12">
+                <Run Text="Platzhalter:" FontWeight="SemiBold" />
+                <Run Text="{}{f} ausgewählte Dateien · {s} erste Datei · {n} ihr Name · {p} Ordner des aktiven Fensters · {d} Ordner des anderen Fensters. Das Programm startet im Ordner des aktiven Fensters." />
+            </TextBlock>
+        </Grid>
+
+        <Grid ColumnDefinitions="110,90,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+            <TextBlock Classes="label" Text="Hintergrund" />
+            <TextBox Grid.Column="1" Text="{Binding BackgroundColor}" />
+            <ItemsControl Grid.Column="2" Margin="10,0,0,0" ItemsSource="{Binding Palette}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Button Classes="swatch" Background="{Binding}" ToolTip.Tip="{Binding}"
+                                Command="{Binding $parent[Window].((vm:ButtonEditorViewModel)DataContext).SetBackgroundCommand}"
+                                CommandParameter="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Grid.Row="1" Classes="label" Text="Text" />
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ForegroundColor}" />
+            <ItemsControl Grid.Row="1" Grid.Column="2" Margin="10,0,0,0" ItemsSource="{Binding Palette}"
+                          VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Button Classes="swatch" Background="{Binding}" ToolTip.Tip="{Binding}"
+                                Command="{Binding $parent[Window].((vm:ButtonEditorViewModel)DataContext).SetForegroundCommand}"
+                                CommandParameter="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="Vorschau" Width="110" VerticalAlignment="Center" />
+            <Border Background="{Binding PreviewBackground}" CornerRadius="2" Padding="16,6" MinWidth="120">
+                <TextBlock Text="{Binding Label}" Foreground="{Binding PreviewForeground}"
+                           HorizontalAlignment="Center" />
+            </Border>
+        </StackPanel>
+
+        <TextBlock Text="{Binding Error}" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   Foreground="IndianRed" TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Classes="accent" Content="OK" MinWidth="90" IsDefault="True" Command="{Binding SaveCommand}"
+                    HorizontalContentAlignment="Center" />
+            <Button Content="Abbrechen" MinWidth="90" IsCancel="True" Command="{Binding CancelCommand}"
+                    HorizontalContentAlignment="Center" />
+        </StackPanel>
+    </StackPanel>
+</Window>

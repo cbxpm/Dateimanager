@@ -3,8 +3,55 @@
              x:Class="Dateimanager.App"
              RequestedThemeVariant="Default">
 
+    <Application.Resources>
+        <!-- Symbole: Material Design Icons (Apache-2.0) -->
+        <StreamGeometry x:Key="ArrowLeftIcon">M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z</StreamGeometry>
+        <StreamGeometry x:Key="ArrowRightIcon">M4,11V13H16L10.5,18.5L11.92,19.92L19.84,12L11.92,4.08L10.5,5.5L16,11H4Z</StreamGeometry>
+        <StreamGeometry x:Key="ArrowUpIcon">M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z</StreamGeometry>
+    </Application.Resources>
+
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+        <Style Selector="Button.tool">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="6,5" />
+        </Style>
+        <Style Selector="Button.tool PathIcon">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+        </Style>
+        <Style Selector="Button.tool:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.tool:disabled PathIcon">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+        <Style Selector="PathIcon.folder">
+            <Setter Property="Foreground" Value="#E3A33A" />
+        </Style>
+
+        <!-- Knopfleiste: Farben bleiben auch beim Überfahren/Drücken erhalten -->
+        <Style Selector="Button.bank">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Padding" Value="4,5" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#50000000" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button.bank:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{TemplateBinding Background}" />
+            <Setter Property="Foreground" Value="{TemplateBinding Foreground}" />
+            <Setter Property="BorderBrush" Value="#C0000000" />
+        </Style>
+        <Style Selector="Button.bank:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{TemplateBinding Background}" />
+            <Setter Property="Foreground" Value="{TemplateBinding Foreground}" />
+            <Setter Property="Opacity" Value="0.75" />
+        </Style>
     </Application.Styles>
 </Application>

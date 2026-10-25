@@ -1,3 +1,5 @@
+using Dateimanager.Core;
+
 namespace Dateimanager.Services;
 
 public interface IDialogService
@@ -8,4 +10,7 @@ public interface IDialogService
     Task<bool> ConfirmAsync(string title, string message, string confirmText);
 
     Task ShowErrorAsync(string title, string message);
+
+    /// <summary>Öffnet den Knopf-Editor; liefert null bei Abbruch.</summary>
+    Task<ButtonDefinition?> EditButtonAsync(string title, ButtonDefinition button);
 }

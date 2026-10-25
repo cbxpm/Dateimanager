@@ -1,236 +1,229 @@
 using Avalonia.Headless.XUnit;
 using Dateimanager.Core;
-using Dateimanager.ViewModels;
+using static Dateimanager.Tests.TestEnvironment;
 
 namespace Dateimanager.Tests;
 
 public sealed class MainWindowViewModelTests : IDisposable
 {
-    private readonly TempDirectory _temp = new();
-    private readonly FakeDialogService _dialogs = new();
-    private readonly FakeTrash _trash = new();
-    private readonly FakeLauncher _launcher = new();
-    private readonly MainWindowViewModel _vm;
+    private readonly TestEnvironment _env = new();
+    private TempDirectory Temp => _env.Temp;
 
-    public MainWindowViewModelTests()
-    {
-        _vm = new MainWindowViewModel(new FileSystemService(), _trash, _dialogs, _launcher,
-            [new Location("Test", _temp.Path, LocationKind.Folder)]);
-    }
+    public void Dispose() => _env.Dispose();
 
-    public void Dispose()
-    {
-        _vm.Dispose();
-        _temp.Dispose();
-    }
-
-    private string[] Names => _vm.Entries.Select(e => e.Name).ToArray();
-
-    private void Select(params string[] names) =>
-        _vm.SetSelection(_vm.Entries.Where(e => names.Contains(e.Name)));
+    private async Task OpenAsync(string left, string right) => await _env.ViewModel.InitializeAsync(left, right);
 
     [AvaloniaFact]
-    public async Task Navigate_ListsEntriesAndUpdatesState()
+    public async Task ActivePane_FollowsActivationAndTab()
     {
-        _temp.File("b.txt");
-        _temp.Dir("a");
+        await OpenAsync(Temp.Path, Temp.Path);
+        Assert.True(_env.Left.IsActive);
 
-        await _vm.NavigateAsync(_temp.Path);
+        _env.Right.RequestActivation();
+        Assert.Same(_env.Right, _env.ViewModel.ActivePane);
+        Assert.False(_env.Left.IsActive);
 
-        Assert.Equal(["a", "b.txt"], Names);
-        Assert.Equal(_temp.Path, _vm.CurrentPath);
-        Assert.Equal(_temp.Path, _vm.AddressText);
-        Assert.Equal("Test", _vm.SelectedLocation?.Name);
-        Assert.Equal("2 Elemente", _vm.StatusText);
+        _env.ViewModel.SwitchPaneCommand.Execute(null);
+        Assert.Same(_env.Left, _env.ViewModel.ActivePane);
+        Assert.Same(_env.Right, _env.ViewModel.InactivePane);
     }
 
     [AvaloniaFact]
-    public async Task Navigate_ToMissingFolderShowsErrorAndKeepsLocation()
+    public async Task CopyToOther_CopiesIntoInactivePaneFolder()
     {
-        await _vm.NavigateAsync(_temp.Path);
-        _vm.AddressText = _temp.Combine("gibt-es-nicht");
+        Temp.File("quelle/a.txt", "x");
+        var target = Temp.Dir("ziel");
+        await OpenAsync(Temp.Combine("quelle"), target);
+        Select(_env.Left, "a.txt");
+        _env.Dialogs.PromptAnswers.Enqueue(target);
 
-        await _vm.NavigateToAddressCommand.ExecuteAsync(null);
+        await _env.ViewModel.CopyToOtherCommand.ExecuteAsync(null);
 
-        Assert.Single(_dialogs.Errors);
-        Assert.Equal(_temp.Path, _vm.CurrentPath);
-        Assert.Equal(_temp.Path, _vm.AddressText);
+        Assert.Equal(target, _env.Dialogs.Prompts.Single());
+        Assert.Equal(["a.txt"], Names(_env.Right));
+        Assert.Equal("a.txt", _env.Right.SelectedEntry?.Name);
+        Assert.True(File.Exists(Temp.Combine("quelle/a.txt")));
     }
 
     [AvaloniaFact]
-    public async Task OpenUpBackAndForward()
+    public async Task MoveToOther_FromRightPane()
     {
-        var sub = _temp.Dir("sub");
-        await _vm.NavigateAsync(_temp.Path);
+        var left = Temp.Dir("links");
+        Temp.File("rechts/a.txt");
+        Temp.File("rechts/b.txt");
+        await OpenAsync(left, Temp.Combine("rechts"));
+        _env.Right.RequestActivation();
+        Select(_env.Right, "a.txt", "b.txt");
+        _env.Dialogs.PromptAnswers.Enqueue(left);
 
-        await _vm.OpenEntryAsync(_vm.Entries.Single(e => e.Name == "sub"));
-        Assert.Equal(sub, _vm.CurrentPath);
-        Assert.Null(_vm.SelectedLocation);
+        await _env.ViewModel.ExecuteBuiltInAsync(BuiltInCommand.Move);
 
-        await _vm.GoUpCommand.ExecuteAsync(null);
-        Assert.Equal(_temp.Path, _vm.CurrentPath);
-        Assert.Equal("sub", _vm.SelectedEntry?.Name); // zuletzt besuchter Ordner wird markiert
-
-        await _vm.GoBackCommand.ExecuteAsync(null);
-        Assert.Equal(sub, _vm.CurrentPath);
-        Assert.True(_vm.GoForwardCommand.CanExecute(null));
-
-        await _vm.GoForwardCommand.ExecuteAsync(null);
-        Assert.Equal(_temp.Path, _vm.CurrentPath);
+        Assert.Equal(["a.txt", "b.txt"], Names(_env.Left));
+        Assert.Empty(_env.Right.Entries);
     }
 
     [AvaloniaFact]
-    public async Task OpenFile_UsesLauncher()
+    public async Task CopyToOther_IsDisabledWithoutSelection()
     {
-        var file = _temp.File("bild.png");
-        await _vm.NavigateAsync(_temp.Path);
-        Select("bild.png");
+        await OpenAsync(Temp.Path, Temp.Path);
 
-        await _vm.OpenSelectedCommand.ExecuteAsync(null);
-
-        Assert.Equal([file], _launcher.Opened);
+        Assert.False(_env.ViewModel.CopyToOtherCommand.CanExecute(null));
+        Assert.False(_env.ViewModel.RenameCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
-    public async Task Filter_ReducesVisibleEntries()
+    public async Task NewFolder_InActivePaneAndRefreshesOtherPaneShowingSameFolder()
     {
-        _temp.File("Rechnung.pdf");
-        _temp.File("Foto.jpg");
-        await _vm.NavigateAsync(_temp.Path);
+        Temp.Dir("Neuer Ordner");
+        await OpenAsync(Temp.Path, Temp.Path);
+        _env.Dialogs.PromptAnswers.Enqueue("Projekte");
 
-        _vm.FilterText = "rech";
+        await _env.ViewModel.NewFolderCommand.ExecuteAsync(null);
 
-        Assert.Equal(["Rechnung.pdf"], Names);
-        Assert.Equal("1 von 2 Elementen", _vm.StatusText);
-    }
-
-    [AvaloniaFact]
-    public async Task SortBySizeDescending_KeepsFoldersFirst()
-    {
-        _temp.File("klein.txt", "1");
-        _temp.File("gross.txt", "1234567890");
-        _temp.Dir("ordner");
-        await _vm.NavigateAsync(_temp.Path);
-
-        _vm.SortByCommand.Execute(SortColumn.Size);
-        Assert.Equal(["ordner", "klein.txt", "gross.txt"], Names);
-
-        _vm.SortByCommand.Execute(SortColumn.Size);
-        Assert.False(_vm.SortAscending);
-        Assert.Equal(["ordner", "gross.txt", "klein.txt"], Names);
-    }
-
-    [AvaloniaFact]
-    public async Task ShowHidden_RevealsDotFiles()
-    {
-        _temp.File(".versteckt");
-        if (OperatingSystem.IsWindows())
-            File.SetAttributes(_temp.Combine(".versteckt"), FileAttributes.Hidden);
-        await _vm.NavigateAsync(_temp.Path);
-        Assert.Empty(_vm.Entries);
-
-        _vm.ToggleHiddenCommand.Execute(null);
-        await _vm.RefreshAsync();
-
-        Assert.Equal([".versteckt"], Names);
-    }
-
-    [AvaloniaFact]
-    public async Task NewFolder_ProposesUniqueNameAndSelectsResult()
-    {
-        _temp.Dir("Neuer Ordner");
-        await _vm.NavigateAsync(_temp.Path);
-        _dialogs.PromptAnswers.Enqueue("Projekte");
-
-        await _vm.NewFolderCommand.ExecuteAsync(null);
-
-        Assert.Equal("Neuer Ordner (2)", _dialogs.Prompts.Single());
-        Assert.True(Directory.Exists(_temp.Combine("Projekte")));
-        Assert.Equal("Projekte", _vm.SelectedEntry?.Name);
+        Assert.Equal("Neuer Ordner (2)", _env.Dialogs.Prompts.Single());
+        Assert.Equal("Projekte", _env.Left.SelectedEntry?.Name);
+        Assert.Contains("Projekte", Names(_env.Right));
     }
 
     [AvaloniaFact]
     public async Task Rename_RequiresSingleSelection()
     {
-        _temp.File("a.txt");
-        _temp.File("b.txt");
-        await _vm.NavigateAsync(_temp.Path);
+        Temp.File("a.txt");
+        Temp.File("b.txt");
+        await OpenAsync(Temp.Path, Temp.Path);
 
-        Select("a.txt", "b.txt");
-        Assert.False(_vm.RenameCommand.CanExecute(null));
+        Select(_env.Left, "a.txt", "b.txt");
+        Assert.False(_env.ViewModel.RenameCommand.CanExecute(null));
 
-        Select("a.txt");
-        _dialogs.PromptAnswers.Enqueue("c.txt");
-        await _vm.RenameCommand.ExecuteAsync(null);
+        Select(_env.Left, "a.txt");
+        _env.Dialogs.PromptAnswers.Enqueue("c.txt");
+        await _env.ViewModel.RenameCommand.ExecuteAsync(null);
 
-        Assert.Equal(["b.txt", "c.txt"], Names);
-        Assert.Equal("c.txt", _vm.SelectedEntry?.Name);
-    }
-
-    [AvaloniaFact]
-    public async Task CopyAndPaste_DuplicatesIntoCurrentFolder()
-    {
-        _temp.File("a.txt", "x");
-        await _vm.NavigateAsync(_temp.Path);
-        Assert.False(_vm.PasteCommand.CanExecute(null));
-
-        Select("a.txt");
-        _vm.CopyCommand.Execute(null);
-        await _vm.PasteCommand.ExecuteAsync(null);
-        await _vm.PasteCommand.ExecuteAsync(null);
-
-        Assert.Equal(["a (2).txt", "a (3).txt", "a.txt"], Names);
-        Assert.True(_vm.PasteCommand.CanExecute(null));
-    }
-
-    [AvaloniaFact]
-    public async Task CutAndPaste_MovesAndClearsClipboard()
-    {
-        _temp.File("a.txt", "x");
-        var target = _temp.Dir("ziel");
-        await _vm.NavigateAsync(_temp.Path);
-
-        Select("a.txt");
-        _vm.CutCommand.Execute(null);
-        Assert.Contains("Ausschneiden", _vm.StatusText);
-
-        await _vm.NavigateAsync(target);
-        await _vm.PasteCommand.ExecuteAsync(null);
-
-        Assert.Equal(["a.txt"], Names);
-        Assert.False(File.Exists(_temp.Combine("a.txt")));
-        Assert.False(_vm.PasteCommand.CanExecute(null));
+        Assert.Equal(["b.txt", "c.txt"], Names(_env.Left));
+        Assert.Equal("c.txt", _env.Left.SelectedEntry?.Name);
     }
 
     [AvaloniaFact]
     public async Task MoveToTrash_OnlyAfterConfirmation()
     {
-        var file = _temp.File("weg.txt");
-        await _vm.NavigateAsync(_temp.Path);
-        Select("weg.txt");
+        var file = Temp.File("weg.txt");
+        await OpenAsync(Temp.Path, Temp.Path);
+        Select(_env.Left, "weg.txt");
 
-        _dialogs.ConfirmAnswer = false;
-        await _vm.MoveToTrashCommand.ExecuteAsync(null);
-        Assert.Empty(_trash.Trashed);
+        _env.Dialogs.ConfirmAnswer = false;
+        await _env.ViewModel.MoveToTrashCommand.ExecuteAsync(null);
+        Assert.Empty(_env.Trash.Trashed);
 
-        _dialogs.ConfirmAnswer = true;
-        await _vm.MoveToTrashCommand.ExecuteAsync(null);
-        Assert.Equal([file], _trash.Trashed);
-        Assert.Empty(_vm.Entries);
+        _env.Dialogs.ConfirmAnswer = true;
+        await _env.ViewModel.MoveToTrashCommand.ExecuteAsync(null);
+        Assert.Equal([file], _env.Trash.Trashed);
+        Assert.Empty(_env.Left.Entries);
+        Assert.Empty(_env.Right.Entries);
     }
 
     [AvaloniaFact]
-    public async Task FailedOperation_ShowsError()
+    public async Task ClipboardCutAndPaste_MovesIntoActivePane()
     {
-        _temp.File("a.txt");
-        await _vm.NavigateAsync(_temp.Path);
-        Select("a.txt");
-        File.Delete(_temp.Combine("a.txt")); // extern gelöscht
+        Temp.File("a.txt", "x");
+        var target = Temp.Dir("ziel");
+        await OpenAsync(Temp.Path, target);
 
-        _dialogs.PromptAnswers.Enqueue("b.txt");
-        await _vm.RenameCommand.ExecuteAsync(null);
+        Select(_env.Left, "a.txt");
+        _env.ViewModel.ClipboardCutCommand.Execute(null);
+        _env.Right.RequestActivation();
+        await _env.ViewModel.PasteCommand.ExecuteAsync(null);
 
-        Assert.Single(_dialogs.Errors);
-        Assert.Empty(_vm.Entries);
+        Assert.Equal(["a.txt"], Names(_env.Right));
+        Assert.False(File.Exists(Temp.Combine("a.txt")));
+        Assert.False(_env.ViewModel.PasteCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public async Task SwapAndSyncPanes()
+    {
+        var a = Temp.Dir("a");
+        var b = Temp.Dir("b");
+        await OpenAsync(a, b);
+
+        await _env.ViewModel.ExecuteBuiltInAsync(BuiltInCommand.SwapPanes);
+        Assert.Equal(b, _env.Left.CurrentPath);
+        Assert.Equal(a, _env.Right.CurrentPath);
+
+        await _env.ViewModel.ExecuteBuiltInAsync(BuiltInCommand.SyncPanes);
+        Assert.Equal(b, _env.Right.CurrentPath);
+    }
+
+    [AvaloniaFact]
+    public async Task ToggleHidden_AppliesToBothPanes()
+    {
+        Temp.File(".versteckt");
+        if (OperatingSystem.IsWindows())
+            File.SetAttributes(Temp.Combine(".versteckt"), FileAttributes.Hidden);
+        await OpenAsync(Temp.Path, Temp.Path);
+        Assert.Empty(_env.Left.Entries);
+
+        await _env.ViewModel.ExecuteBuiltInAsync(BuiltInCommand.ToggleHidden);
+        await _env.ViewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal([".versteckt"], Names(_env.Left));
+        Assert.Equal([".versteckt"], Names(_env.Right));
+        Assert.True(_env.Settings.ShowHidden);
+    }
+
+    [AvaloniaFact]
+    public async Task ExternalButton_ExpandsPlaceholders()
+    {
+        var a = Temp.File("links/a b.txt");
+        var c = Temp.File("links/c.txt");
+        var right = Temp.Dir("rechts");
+        await OpenAsync(Temp.Combine("links"), right);
+        Select(_env.Left, "a b.txt", "c.txt");
+
+        await _env.ViewModel.ExecuteButtonAsync(
+            ButtonDefinition.External("Packen", "tar", "-czf {d}/archiv.tgz {f}", "#000", "#fff"));
+
+        var run = Assert.Single(_env.Shell.Runs);
+        Assert.Equal("tar", run.Program);
+        Assert.Equal(["-czf", $"{right}/archiv.tgz", a, c], run.Arguments);
+        Assert.Equal(Temp.Combine("links"), run.WorkingDirectory);
+    }
+
+    [AvaloniaFact]
+    public async Task ExternalButton_RunPerFile()
+    {
+        Temp.File("a.txt");
+        Temp.File("b.txt");
+        await OpenAsync(Temp.Path, Temp.Path);
+        Select(_env.Left, "a.txt", "b.txt");
+
+        await _env.ViewModel.ExecuteButtonAsync(
+            ButtonDefinition.External("Ansehen", "viewer", "--name {n}", "#000", "#fff", runPerFile: true));
+
+        Assert.Equal([["--name", "a.txt"], ["--name", "b.txt"]], _env.Shell.Runs.Select(r => r.Arguments.ToArray()));
+    }
+
+    [AvaloniaFact]
+    public async Task ExternalButton_NeedingSelectionShowsErrorWithoutSelection()
+    {
+        await OpenAsync(Temp.Path, Temp.Path);
+
+        await _env.ViewModel.ExecuteButtonAsync(ButtonDefinition.External("Editor", "edit", "{f}", "#000", "#fff"));
+
+        Assert.Empty(_env.Shell.Runs);
+        Assert.Single(_env.Dialogs.Errors);
+    }
+
+    [AvaloniaFact]
+    public async Task SaveSettings_StoresPanePaths()
+    {
+        var a = Temp.Dir("a");
+        var b = Temp.Dir("b");
+        await OpenAsync(a, b);
+
+        _env.ViewModel.SaveSettings();
+
+        var loaded = _env.Store.Load();
+        Assert.Equal(a, loaded.LeftPath);
+        Assert.Equal(b, loaded.RightPath);
     }
 }

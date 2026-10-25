@@ -1,8 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
-using Dateimanager.Core;
-using Location = Dateimanager.Core.Location;
 using Dateimanager.ViewModels;
 using Dateimanager.Views;
 
@@ -10,35 +10,71 @@ namespace Dateimanager.Tests;
 
 public sealed class MainWindowTests : IDisposable
 {
-    private readonly TempDirectory _temp = new();
+    private readonly TestEnvironment _env = new();
 
-    public void Dispose() => _temp.Dispose();
+    public void Dispose() => _env.Dispose();
+
+    private async Task<MainWindow> ShowAsync(string left, string right)
+    {
+        var window = new MainWindow { DataContext = _env.ViewModel };
+        window.Show();
+        await _env.ViewModel.InitializeAsync(left, right);
+        Dispatcher.UIThread.RunJobs();
+        return window;
+    }
+
+    private static DataGrid Grid(MainWindow window, string pane) =>
+        window.FindControl<PaneView>(pane)!.Grid;
 
     [AvaloniaFact]
-    public async Task Window_ShowsDirectoryContentsInGrid()
+    public async Task Window_ShowsBothPanesAndButtonBank()
     {
-        _temp.File("datei.txt", "hallo");
-        _temp.Dir("ordner");
+        _env.Temp.File("links/datei.txt", "hallo");
+        _env.Temp.Dir("links/ordner");
+        var right = _env.Temp.Dir("rechts");
 
-        var window = new MainWindow();
-        var vm = new MainWindowViewModel(new FileSystemService(), new FakeTrash(), new FakeDialogService(),
-            new FakeLauncher(), [new Location("Test", _temp.Path, LocationKind.Folder)]);
-        window.DataContext = vm;
-        window.Show();
+        var window = await ShowAsync(_env.Temp.Combine("links"), right);
 
-        await vm.NavigateAsync(_temp.Path);
+        Assert.Equal(2, Grid(window, "LeftPane").ItemsSource!.Cast<object>().Count());
+        Assert.Empty(Grid(window, "RightPane").ItemsSource!.Cast<object>());
+        Assert.Equal("Name  ↑", Grid(window, "LeftPane").Columns[0].Header);
+
+        var bank = window.FindControl<ItemsControl>("ButtonBankItems")!;
+        Assert.Equal(16, bank.GetRealizedContainers().Count());
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task GridSelection_IsReportedAndCanBeChangedByViewModel()
+    {
+        _env.Temp.File("a.txt");
+        _env.Temp.File("b.txt");
+        var window = await ShowAsync(_env.Temp.Path, _env.Temp.Path);
+        var grid = Grid(window, "LeftPane");
+
+        grid.SelectedItem = _env.Left.Entries[1];
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("b.txt", Assert.Single(_env.Left.Selection).Name);
+        Assert.True(_env.ViewModel.RenameCommand.CanExecute(null));
+
+        _env.Left.SelectAll();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, grid.SelectedItems.Count);
+        Assert.Equal(2, _env.Left.Selection.Count);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TabSwitchesActivePane()
+    {
+        var window = await ShowAsync(_env.Temp.Path, _env.Temp.Path);
+        Assert.Same(_env.Left, _env.ViewModel.ActivePane);
+
+        window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
 
-        var grid = window.FindControl<DataGrid>("FileGrid")!;
-        Assert.Equal(2, grid.ItemsSource!.Cast<object>().Count());
-        Assert.Equal("Name  ↑", grid.Columns[0].Header);
-
-        // Auswahl in der Liste wird an das ViewModel gemeldet
-        grid.SelectedItem = vm.Entries[1];
-        Dispatcher.UIThread.RunJobs();
-        Assert.Equal("datei.txt", Assert.Single(vm.Selection).Name);
-        Assert.True(vm.RenameCommand.CanExecute(null));
-
+        Assert.Same(_env.Right, _env.ViewModel.ActivePane);
+        Assert.Contains(_env.Right.CurrentPath, window.Title);
         window.Close();
     }
 }

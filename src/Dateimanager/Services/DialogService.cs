@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Dateimanager.Core;
+using Dateimanager.Views;
 
 namespace Dateimanager.Services;
 
@@ -39,10 +41,11 @@ public sealed class DialogService(Window owner) : IDialogService
         dialog.Opened += (_, _) =>
         {
             input.Focus();
-            // Bei Dateinamen nur den Namen ohne Endung markieren
+            // Bei Dateinamen nur den Namen ohne Endung markieren, Pfade komplett
+            var isPath = initialText.IndexOfAny(['/', '\\']) >= 0;
             var dot = initialText.LastIndexOf('.');
             input.SelectionStart = 0;
-            input.SelectionEnd = dot > 0 ? dot : initialText.Length;
+            input.SelectionEnd = !isPath && dot > 0 ? dot : initialText.Length;
         };
 
         return await dialog.ShowDialog<string?>(owner);
@@ -65,6 +68,9 @@ public sealed class DialogService(Window owner) : IDialogService
         AddButton(buttons, "OK", isDefault: true, isCancel: true).Click += (_, _) => dialog.Close();
         await dialog.ShowDialog(owner);
     }
+
+    public Task<ButtonDefinition?> EditButtonAsync(string title, ButtonDefinition button) =>
+        ButtonEditorWindow.ShowAsync(owner, title, button);
 
     private static Window CreateDialog(string title, string message, out StackPanel buttons,
         params Control[] content)

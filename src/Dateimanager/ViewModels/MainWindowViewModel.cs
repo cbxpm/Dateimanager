@@ -1,5 +1,5 @@
-using System.Collections.ObjectModel;
-using Avalonia.Threading;
+using System.ComponentModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dateimanager.Core;
@@ -7,14 +7,7 @@ using Dateimanager.Services;
 
 namespace Dateimanager.ViewModels;
 
-public enum SortColumn
-{
-    Name,
-    Size,
-    Type,
-    Modified,
-}
-
+/// <summary>Zwei Dateifenster nebeneinander (wie im Total Commander) und die Knopfleiste darunter.</summary>
 public partial class MainWindowViewModel : ViewModelBase, IDisposable
 {
     private sealed record ClipboardContent(IReadOnlyList<string> Paths, bool IsCut);
@@ -22,46 +15,38 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly FileSystemService _fileSystem;
     private readonly ITrashService _trash;
     private readonly IDialogService _dialogs;
-    private readonly IFileLauncher _launcher;
-    private readonly NavigationHistory _history = new();
-    private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
-
-    private IReadOnlyList<FileSystemEntry> _allEntries = [];
-    private IReadOnlyList<FileEntryViewModel> _selection = [];
+    private readonly IShellService _shell;
+    private readonly SettingsStore _settingsStore;
+    private readonly AppSettings _settings;
     private ClipboardContent? _clipboard;
-    private FileSystemWatcher? _watcher;
-    private CancellationTokenSource? _loadCts;
 
     public MainWindowViewModel(FileSystemService fileSystem, ITrashService trash, IDialogService dialogs,
-        IFileLauncher launcher, IEnumerable<Location>? locations = null)
+        IShellService shell, SettingsStore settingsStore, AppSettings settings, IEnumerable<Location>? locations = null)
     {
         _fileSystem = fileSystem;
         _trash = trash;
         _dialogs = dialogs;
-        _launcher = launcher;
-        Locations = new ObservableCollection<LocationViewModel>(
-            (locations ?? KnownLocations.Get()).Select(l => new LocationViewModel(l)));
+        _shell = shell;
+        _settingsStore = settingsStore;
+        _settings = settings;
 
-        _refreshTimer.Tick += (_, _) =>
-        {
-            _refreshTimer.Stop();
-            _ = RefreshAsync();
-        };
+        var locationViewModels = (locations ?? KnownLocations.Get()).Select(l => new LocationViewModel(l)).ToList();
+        Left = CreatePane("Links", locationViewModels);
+        Right = CreatePane("Rechts", locationViewModels);
+        ActivePane = Left;
+        ShowHidden = settings.ShowHidden;
+
+        ButtonBank = new ButtonBankViewModel(settings, SaveSettings, dialogs, ExecuteButtonAsync);
     }
 
-    public ObservableCollection<LocationViewModel> Locations { get; }
+    public PaneViewModel Left { get; }
+    public PaneViewModel Right { get; }
+    public ButtonBankViewModel ButtonBank { get; }
 
     [ObservableProperty]
-    public partial IReadOnlyList<FileEntryViewModel> Entries { get; private set; } = [];
+    public partial PaneViewModel ActivePane { get; set; }
 
-    [ObservableProperty]
-    public partial string CurrentPath { get; private set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string AddressText { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string FilterText { get; set; } = string.Empty;
+    public PaneViewModel InactivePane => ActivePane == Left ? Right : Left;
 
     [ObservableProperty]
     public partial bool ShowHidden { get; set; }
@@ -69,195 +54,167 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial bool IsBusy { get; private set; }
 
-    [ObservableProperty]
-    public partial string StatusText { get; private set; } = string.Empty;
+    private bool HasSelection => ActivePane.Selection.Count > 0;
+    private bool HasSingleSelection => ActivePane.Selection.Count == 1;
+    private bool CanPaste => _clipboard is not null;
 
-    [ObservableProperty]
-    public partial FileEntryViewModel? SelectedEntry { get; set; }
+    public Task InitializeAsync(string leftPath, string rightPath) =>
+        Task.WhenAll(Left.NavigateAsync(leftPath), Right.NavigateAsync(rightPath));
 
-    [ObservableProperty]
-    public partial LocationViewModel? SelectedLocation { get; set; }
-
-    [ObservableProperty]
-    public partial SortColumn SortColumn { get; private set; } = SortColumn.Name;
-
-    [ObservableProperty]
-    public partial bool SortAscending { get; private set; } = true;
-
-    public IReadOnlyList<FileEntryViewModel> Selection => _selection;
-
-    private bool HasSelection => _selection.Count > 0;
-    private bool HasSingleSelection => _selection.Count == 1;
-    private bool CanPaste => _clipboard is not null && CurrentPath.Length > 0;
-    private bool CanGoBack => _history.CanGoBack;
-    private bool CanGoForward => _history.CanGoForward;
-    private bool CanGoUp => CurrentPath.Length > 0 && Directory.GetParent(CurrentPath) is not null;
-
-    /// <summary>Wird von der Ansicht aufgerufen, wenn sich die Auswahl in der Liste ändert.</summary>
-    public void SetSelection(IEnumerable<FileEntryViewModel> selection)
+    /// <summary>Speichert Knöpfe und die aktuell geöffneten Ordner.</summary>
+    public void SaveSettings()
     {
-        _selection = selection.ToList();
-        UpdateCommandStates();
-        UpdateStatus();
-    }
-
-    public async Task NavigateAsync(string path, bool recordHistory = true, string? selectPath = null)
-    {
-        string fullPath;
-        try
-        {
-            fullPath = Path.GetFullPath(ExpandHome(path.Trim()), CurrentPath.Length > 0 ? CurrentPath : Environment.CurrentDirectory);
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            await _dialogs.ShowErrorAsync("Ungültiger Pfad", $"„{path}“ ist kein gültiger Pfad.");
-            AddressText = CurrentPath;
-            return;
-        }
-
-        if (!Directory.Exists(fullPath))
-        {
-            await _dialogs.ShowErrorAsync("Ordner nicht gefunden", $"Der Ordner „{fullPath}“ wurde nicht gefunden.");
-            AddressText = CurrentPath;
-            return;
-        }
-
-        _loadCts?.Cancel();
-        var cts = _loadCts = new CancellationTokenSource();
-        IsBusy = true;
+        if (Left.CurrentPath.Length > 0)
+            _settings.LeftPath = Left.CurrentPath;
+        if (Right.CurrentPath.Length > 0)
+            _settings.RightPath = Right.CurrentPath;
 
         try
         {
-            var showHidden = ShowHidden;
-            var entries = await Task.Run(() => _fileSystem.ListDirectory(fullPath, showHidden), cts.Token);
-            if (cts.IsCancellationRequested)
-                return;
-
-            if (recordHistory)
-                _history.Navigate(fullPath);
-
-            var pathChanged = !PathEquals(fullPath, CurrentPath);
-            CurrentPath = fullPath;
-            AddressText = fullPath;
-            _allEntries = entries;
-
-            if (pathChanged)
-            {
-                FilterText = string.Empty;
-                StartWatching(fullPath);
-            }
-
-            ApplyView(selectPath);
-        }
-        catch (OperationCanceledException)
-        {
-            // Eine neuere Navigation hat diese abgelöst
+            _settingsStore.Save(_settings);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            if (!cts.IsCancellationRequested)
+            Trace.TraceWarning($"Einstellungen konnten nicht gespeichert werden: {ex.Message}");
+        }
+    }
+
+    public Task ExecuteButtonAsync(ButtonDefinition button) =>
+        button.Kind == ButtonActionKind.BuiltIn ? ExecuteBuiltInAsync(button.Command) : RunExternalAsync(button);
+
+    public Task ExecuteBuiltInAsync(BuiltInCommand command)
+    {
+        switch (command)
+        {
+            case BuiltInCommand.Copy: return TransferAsync(move: false);
+            case BuiltInCommand.Move: return TransferAsync(move: true);
+            case BuiltInCommand.NewFolder: return NewFolderAsync();
+            case BuiltInCommand.Delete: return MoveToTrashAsync();
+            case BuiltInCommand.DeletePermanently: return DeletePermanentlyAsync();
+            case BuiltInCommand.Rename: return RenameAsync();
+            case BuiltInCommand.Open: return ActivePane.OpenSelectedAsync();
+            case BuiltInCommand.Parent: return ActivePane.GoUpAsync();
+            case BuiltInCommand.Root: return ActivePane.GoRootAsync();
+            case BuiltInCommand.Back: return ActivePane.GoBackAsync();
+            case BuiltInCommand.Forward: return ActivePane.GoForwardAsync();
+            case BuiltInCommand.Refresh: return RefreshAsync();
+            case BuiltInCommand.SwapPanes: return SwapPanesAsync();
+            case BuiltInCommand.SyncPanes: return SyncPanesAsync();
+            case BuiltInCommand.SelectAll: ActivePane.SelectAll(); break;
+            case BuiltInCommand.SelectNone: ActivePane.SelectNone(); break;
+            case BuiltInCommand.InvertSelection: ActivePane.InvertSelection(); break;
+            case BuiltInCommand.ToggleHidden: ShowHidden = !ShowHidden; break;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task RunExternalAsync(ButtonDefinition button)
+    {
+        var pane = ActivePane;
+        var selected = pane.SelectedPaths;
+
+        if (string.IsNullOrWhiteSpace(button.Program))
+        {
+            await _dialogs.ShowErrorAsync(button.Label, "Für diesen Knopf ist kein Programm eingetragen.");
+            return;
+        }
+
+        if (CommandTemplate.UsesSelection(button.Arguments) && selected.Count == 0)
+        {
+            await _dialogs.ShowErrorAsync(button.Label, "Für diesen Befehl müssen Dateien ausgewählt sein.");
+            return;
+        }
+
+        IEnumerable<IReadOnlyList<string>> runs = button.RunPerFile && selected.Count > 0
+            ? selected.Select(p => (IReadOnlyList<string>)[p])
+            : [selected];
+
+        try
+        {
+            foreach (var paths in runs)
             {
-                AddressText = CurrentPath;
-                await _dialogs.ShowErrorAsync("Ordner kann nicht geöffnet werden", ex.Message);
+                var context = new CommandContext(pane.CurrentPath, InactivePane.CurrentPath, paths);
+                _shell.Run(button.Program, CommandTemplate.Expand(button.Arguments, context), pane.CurrentPath);
             }
         }
-        finally
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {
-            if (_loadCts == cts)
-                IsBusy = false;
-            UpdateCommandStates();
+            await _dialogs.ShowErrorAsync(button.Label, $"„{button.Program}“ konnte nicht gestartet werden:\n{ex.Message}");
         }
     }
 
     [RelayCommand]
-    public Task RefreshAsync() =>
-        CurrentPath.Length == 0
-            ? Task.CompletedTask
-            : NavigateAsync(CurrentPath, recordHistory: false, selectPath: SelectedEntry?.FullPath);
+    private void SwitchPane() => ActivePane = InactivePane;
 
     [RelayCommand]
-    private Task NavigateToAddressAsync() => NavigateAsync(AddressText);
+    private Task SwapPanesAsync()
+    {
+        var left = Left.CurrentPath;
+        var right = Right.CurrentPath;
+        return Task.WhenAll(Left.NavigateAsync(right), Right.NavigateAsync(left));
+    }
 
     [RelayCommand]
-    private void ResetAddress() => AddressText = CurrentPath;
+    private Task SyncPanesAsync() => InactivePane.NavigateAsync(ActivePane.CurrentPath);
 
     [RelayCommand]
     private void ToggleHidden() => ShowHidden = !ShowHidden;
 
-    [RelayCommand(CanExecute = nameof(CanGoBack))]
-    private Task GoBackAsync()
-    {
-        var previous = CurrentPath;
-        return _history.GoBack() is { } path
-            ? NavigateAsync(path, recordHistory: false, selectPath: previous)
-            : Task.CompletedTask;
-    }
-
-    [RelayCommand(CanExecute = nameof(CanGoForward))]
-    private Task GoForwardAsync() =>
-        _history.GoForward() is { } path ? NavigateAsync(path, recordHistory: false) : Task.CompletedTask;
-
-    [RelayCommand(CanExecute = nameof(CanGoUp))]
-    private Task GoUpAsync() =>
-        Directory.GetParent(CurrentPath) is { } parent
-            ? NavigateAsync(parent.FullName, selectPath: CurrentPath)
-            : Task.CompletedTask;
+    [RelayCommand]
+    private Task RefreshAsync() => Task.WhenAll(Left.ReloadAsync(), Right.ReloadAsync());
 
     [RelayCommand]
-    private void SortBy(SortColumn column)
-    {
-        if (SortColumn == column)
-        {
-            SortAscending = !SortAscending;
-        }
-        else
-        {
-            SortColumn = column;
-            SortAscending = true;
-        }
-
-        ApplyView(SelectedEntry?.FullPath);
-    }
+    private Task GoBackAsync() => ActivePane.GoBackAsync();
 
     [RelayCommand]
-    public async Task OpenEntryAsync(FileEntryViewModel? entry)
-    {
-        if (entry is null)
-            return;
+    private Task GoForwardAsync() => ActivePane.GoForwardAsync();
 
-        if (entry.IsDirectory)
-        {
-            await NavigateAsync(entry.FullPath);
-            return;
-        }
+    [RelayCommand]
+    private Task GoUpAsync() => ActivePane.GoUpAsync();
 
-        try
-        {
-            _launcher.Open(entry.FullPath);
-        }
-        catch (Exception ex)
-        {
-            await _dialogs.ShowErrorAsync("Datei kann nicht geöffnet werden", ex.Message);
-        }
-    }
+    [RelayCommand]
+    private Task OpenSelectedAsync() => ActivePane.OpenSelectedAsync();
+
+    [RelayCommand]
+    private void SelectAll() => ActivePane.SelectAll();
+
+    [RelayCommand]
+    private void SelectNone() => ActivePane.SelectNone();
+
+    [RelayCommand]
+    private void InvertSelection() => ActivePane.InvertSelection();
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
-    private async Task OpenSelectedAsync()
-    {
-        if (_selection is [var single])
-        {
-            await OpenEntryAsync(single);
-            return;
-        }
+    private Task CopyToOtherAsync() => TransferAsync(move: false);
 
-        foreach (var file in _selection.Where(e => !e.IsDirectory).ToList())
-            await OpenEntryAsync(file);
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private Task MoveToOtherAsync() => TransferAsync(move: true);
+
+    private async Task TransferAsync(bool move)
+    {
+        var source = ActivePane;
+        var paths = source.SelectedPaths;
+        if (paths.Count == 0)
+            return;
+
+        var sourceDirectory = source.CurrentPath;
+        var target = await _dialogs.PromptAsync(move ? "Verschieben" : "Kopieren",
+            $"{Describe(source.Selection)} {(move ? "verschieben" : "kopieren")} nach:",
+            InactivePane.CurrentPath,
+            t => Directory.Exists(Path.GetFullPath(t, sourceDirectory)) ? null : "Der Zielordner existiert nicht.");
+        if (target is null)
+            return;
+
+        var targetDirectory = Path.GetFullPath(target, sourceDirectory);
+        await RunFileOperationAsync(move ? "Verschieben fehlgeschlagen" : "Kopieren fehlgeschlagen", () =>
+            (move ? _fileSystem.Move(paths, targetDirectory) : _fileSystem.Copy(paths, targetDirectory)).LastOrDefault());
     }
 
     [RelayCommand]
     private async Task NewFolderAsync()
     {
-        var directory = CurrentPath;
+        var directory = ActivePane.CurrentPath;
         var name = await _dialogs.PromptAsync("Neuer Ordner", "Name des neuen Ordners:",
             FileSystemService.GetUniqueName(directory, "Neuer Ordner"),
             n => ValidateNewName(directory, n, currentName: null));
@@ -271,10 +228,10 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(HasSingleSelection))]
     private async Task RenameAsync()
     {
-        if (_selection is not [var entry])
+        if (ActivePane.Selection is not [var entry])
             return;
 
-        var directory = CurrentPath;
+        var directory = ActivePane.CurrentPath;
         var name = await _dialogs.PromptAsync("Umbenennen", $"Neuer Name für „{entry.Name}“:", entry.Name,
             n => ValidateNewName(directory, n, entry.Name));
         if (name is null || name == entry.Name)
@@ -286,11 +243,13 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task MoveToTrashAsync()
     {
-        var paths = _selection.Select(e => e.FullPath).ToList();
-        if (!await _dialogs.ConfirmAsync("In den Papierkorb verschieben",
-                $"{Describe(_selection)} in den Papierkorb verschieben?", "In den Papierkorb"))
+        var selection = ActivePane.Selection;
+        if (selection.Count == 0 ||
+            !await _dialogs.ConfirmAsync("In den Papierkorb verschieben",
+                $"{Describe(selection)} in den Papierkorb verschieben?", "In den Papierkorb"))
             return;
 
+        var paths = selection.Select(e => e.FullPath).ToList();
         await RunFileOperationAsync("Löschen fehlgeschlagen", () =>
         {
             foreach (var path in paths)
@@ -302,12 +261,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task DeletePermanentlyAsync()
     {
-        var paths = _selection.Select(e => e.FullPath).ToList();
-        if (!await _dialogs.ConfirmAsync("Endgültig löschen",
-                $"{Describe(_selection)} endgültig löschen?\nDies kann nicht rückgängig gemacht werden.",
+        var selection = ActivePane.Selection;
+        if (selection.Count == 0 ||
+            !await _dialogs.ConfirmAsync("Endgültig löschen",
+                $"{Describe(selection)} endgültig löschen?\nDies kann nicht rückgängig gemacht werden.",
                 "Endgültig löschen"))
             return;
 
+        var paths = selection.Select(e => e.FullPath).ToList();
         await RunFileOperationAsync("Löschen fehlgeschlagen", () =>
         {
             _fileSystem.DeletePermanently(paths);
@@ -316,10 +277,10 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void Copy() => SetClipboard(isCut: false);
+    private void ClipboardCopy() => SetClipboard(isCut: false);
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void Cut() => SetClipboard(isCut: true);
+    private void ClipboardCut() => SetClipboard(isCut: true);
 
     [RelayCommand(CanExecute = nameof(CanPaste))]
     private async Task PasteAsync()
@@ -327,7 +288,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (_clipboard is not { } clipboard)
             return;
 
-        var destination = CurrentPath;
+        var destination = ActivePane.CurrentPath;
         var succeeded = await RunFileOperationAsync("Einfügen fehlgeschlagen", () =>
         {
             var result = clipboard.IsCut
@@ -341,58 +302,38 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         {
             _clipboard = null;
             UpdateCommandStates();
-            UpdateStatus();
         }
     }
 
-    partial void OnFilterTextChanged(string value) => ApplyView(SelectedEntry?.FullPath);
-
-    partial void OnShowHiddenChanged(bool value) => _ = RefreshAsync();
-
-    partial void OnCurrentPathChanged(string value) =>
-        SelectedLocation = Locations.FirstOrDefault(l => PathEquals(l.Path, value));
-
-    partial void OnSelectedLocationChanged(LocationViewModel? value)
+    partial void OnActivePaneChanged(PaneViewModel value)
     {
-        if (value is not null && !PathEquals(value.Path, CurrentPath))
-            _ = NavigateAsync(value.Path);
+        Left.IsActive = value == Left;
+        Right.IsActive = value == Right;
+        OnPropertyChanged(nameof(InactivePane));
+        UpdateCommandStates();
     }
 
-    private void ApplyView(string? selectPath)
+    partial void OnShowHiddenChanged(bool value)
     {
-        var filter = FilterText.Trim();
-        IEnumerable<FileSystemEntry> items = _allEntries;
-        if (filter.Length > 0)
-            items = items.Where(e => e.Name.Contains(filter, StringComparison.CurrentCultureIgnoreCase));
-
-        var comparer = Comparer<FileSystemEntry>.Create(CompareEntries);
-        Entries = items.Order(comparer).Select(e => new FileEntryViewModel(e)).ToList();
-        SelectedEntry = selectPath is null ? null : Entries.FirstOrDefault(e => PathEquals(e.FullPath, selectPath));
-        UpdateStatus();
+        Left.ShowHidden = value;
+        Right.ShowHidden = value;
+        _settings.ShowHidden = value;
     }
 
-    private int CompareEntries(FileSystemEntry a, FileSystemEntry b)
+    private PaneViewModel CreatePane(string name, IReadOnlyList<LocationViewModel> locations)
     {
-        // Ordner stehen immer vor Dateien, unabhängig von der Sortierrichtung
-        if (a.IsDirectory != b.IsDirectory)
-            return a.IsDirectory ? -1 : 1;
-
-        var byName = StringComparer.CurrentCultureIgnoreCase.Compare(a.Name, b.Name);
-        var result = SortColumn switch
+        var pane = new PaneViewModel(name, _fileSystem, _dialogs, _shell, locations);
+        pane.ActivationRequested += (_, _) => ActivePane = pane;
+        pane.SelectionChanged += (_, _) =>
         {
-            SortColumn.Size => Nullable.Compare(a.Size, b.Size),
-            SortColumn.Type => StringComparer.CurrentCultureIgnoreCase.Compare(a.Extension, b.Extension),
-            SortColumn.Modified => a.LastModified.CompareTo(b.LastModified),
-            _ => byName,
+            if (pane == ActivePane)
+                UpdateCommandStates();
         };
-
-        if (result == 0)
-            return byName;
-        return SortAscending ? result : -result;
+        return pane;
     }
 
-    /// <summary>Führt eine Dateioperation im Hintergrund aus und aktualisiert danach die Ansicht.</summary>
-    /// <param name="operation">Liefert optional den Pfad, der anschließend ausgewählt werden soll.</param>
+    /// <summary>Führt eine Dateioperation im Hintergrund aus und aktualisiert danach beide Fenster.</summary>
+    /// <param name="operation">Liefert optional den Pfad, der anschließend markiert werden soll.</param>
     private async Task<bool> RunFileOperationAsync(string errorTitle, Func<string?> operation)
     {
         IsBusy = true;
@@ -412,15 +353,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             IsBusy = false;
         }
 
-        await NavigateAsync(CurrentPath, recordHistory: false, selectPath: selectPath ?? SelectedEntry?.FullPath);
+        await Task.WhenAll(Left.ReloadAsync(SelectionFor(Left, selectPath)),
+            Right.ReloadAsync(SelectionFor(Right, selectPath)));
         return succeeded;
     }
 
+    private static string? SelectionFor(PaneViewModel pane, string? path) =>
+        path is not null && PaneViewModel.PathEquals(Path.GetDirectoryName(path), pane.CurrentPath) ? path : null;
+
     private void SetClipboard(bool isCut)
     {
-        _clipboard = new ClipboardContent(_selection.Select(e => e.FullPath).ToList(), isCut);
+        _clipboard = new ClipboardContent(ActivePane.SelectedPaths, isCut);
         UpdateCommandStates();
-        UpdateStatus();
     }
 
     private static string? ValidateNewName(string directory, string name, string? currentName)
@@ -435,94 +379,22 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private static string Describe(IReadOnlyList<FileEntryViewModel> entries) =>
         entries is [var single] ? $"„{single.Name}“" : $"{entries.Count} Elemente";
 
-    private void UpdateStatus()
-    {
-        var parts = new List<string>
-        {
-            Entries.Count == _allEntries.Count
-                ? $"{Entries.Count} Elemente"
-                : $"{Entries.Count} von {_allEntries.Count} Elementen",
-        };
-
-        if (_selection.Count > 0)
-        {
-            var selectedSize = _selection.Where(e => !e.IsDirectory).Sum(e => e.Size);
-            parts.Add(selectedSize > 0
-                ? $"{_selection.Count} ausgewählt ({SizeFormatter.Format(selectedSize)})"
-                : $"{_selection.Count} ausgewählt");
-        }
-
-        if (_clipboard is { } clipboard)
-            parts.Add($"{clipboard.Paths.Count} in der Zwischenablage ({(clipboard.IsCut ? "Ausschneiden" : "Kopieren")})");
-
-        StatusText = string.Join("   ·   ", parts);
-    }
-
     private void UpdateCommandStates()
     {
-        GoBackCommand.NotifyCanExecuteChanged();
-        GoForwardCommand.NotifyCanExecuteChanged();
-        GoUpCommand.NotifyCanExecuteChanged();
-        OpenSelectedCommand.NotifyCanExecuteChanged();
+        CopyToOtherCommand.NotifyCanExecuteChanged();
+        MoveToOtherCommand.NotifyCanExecuteChanged();
         RenameCommand.NotifyCanExecuteChanged();
         MoveToTrashCommand.NotifyCanExecuteChanged();
         DeletePermanentlyCommand.NotifyCanExecuteChanged();
-        CopyCommand.NotifyCanExecuteChanged();
-        CutCommand.NotifyCanExecuteChanged();
+        ClipboardCopyCommand.NotifyCanExecuteChanged();
+        ClipboardCutCommand.NotifyCanExecuteChanged();
         PasteCommand.NotifyCanExecuteChanged();
     }
 
-    private void StartWatching(string path)
-    {
-        _watcher?.Dispose();
-        _watcher = null;
-
-        try
-        {
-            var watcher = new FileSystemWatcher(path)
-            {
-                IncludeSubdirectories = false,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName |
-                               NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.Attributes,
-            };
-            watcher.Created += OnFileSystemChanged;
-            watcher.Deleted += OnFileSystemChanged;
-            watcher.Changed += OnFileSystemChanged;
-            watcher.Renamed += OnFileSystemChanged;
-            watcher.EnableRaisingEvents = true;
-            _watcher = watcher;
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException or PlatformNotSupportedException)
-        {
-            // Ohne Überwachung bleibt nur das manuelle Aktualisieren (F5)
-        }
-    }
-
-    // Kommt auf einem Hintergrund-Thread an; mehrere Ereignisse werden zu einer Aktualisierung gebündelt
-    private void OnFileSystemChanged(object? sender, FileSystemEventArgs e) =>
-        Dispatcher.UIThread.Post(() =>
-        {
-            _refreshTimer.Stop();
-            _refreshTimer.Start();
-        });
-
-    private static string ExpandHome(string path) =>
-        path == "~" || path.StartsWith("~/", StringComparison.Ordinal)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + path[1..]
-            : path;
-
-    private static bool PathEquals(string? a, string? b) =>
-        a is not null && b is not null &&
-        string.Equals(Path.TrimEndingDirectorySeparator(a), Path.TrimEndingDirectorySeparator(b),
-            OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
-
     public void Dispose()
     {
-        _refreshTimer.Stop();
-        _watcher?.Dispose();
-        _loadCts?.Cancel();
+        Left.Dispose();
+        Right.Dispose();
         GC.SuppressFinalize(this);
     }
 }

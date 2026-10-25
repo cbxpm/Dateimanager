@@ -1,0 +1,162 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Dateimanager.ViewModels"
+             x:Class="Dateimanager.Views.PaneView"
+             x:DataType="vm:PaneViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.pane">
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+        </Style>
+        <Style Selector="Border.pane.active">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
+        <Style Selector="Border.header">
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="CornerRadius" Value="2,2,0,0" />
+        </Style>
+        <Style Selector="Border.stripe">
+            <Setter Property="Height" Value="3" />
+            <Setter Property="CornerRadius" Value="2,2,0,0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.pane.active Border.stripe">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
+        <Style Selector="DataGridCell">
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="pane" Classes.active="{Binding IsActive}">
+        <DockPanel>
+            <Border DockPanel.Dock="Top" Classes="stripe" />
+            <Border DockPanel.Dock="Top" Classes="header">
+                <Grid ColumnDefinitions="190,Auto,*,100" ColumnSpacing="4">
+                    <ComboBox x:Name="LocationBox" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Locations}"
+                              SelectedItem="{Binding SelectedLocation}"
+                              ToolTip.Tip="Ort wählen">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LocationViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="8" ToolTip.Tip="{Binding Path}">
+                                    <PathIcon Data="{Binding Icon}" Width="14" Height="14" />
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Classes="tool" Command="{Binding GoBackCommand}" ToolTip.Tip="Zurück (Alt+Links)" Focusable="False">
+                            <PathIcon Data="{StaticResource ArrowLeftIcon}" />
+                        </Button>
+                        <Button Classes="tool" Command="{Binding GoForwardCommand}" ToolTip.Tip="Vorwärts (Alt+Rechts)" Focusable="False">
+                            <PathIcon Data="{StaticResource ArrowRightIcon}" />
+                        </Button>
+                        <Button Classes="tool" Command="{Binding GoUpCommand}" ToolTip.Tip="Übergeordneter Ordner (Rücktaste)" Focusable="False">
+                            <PathIcon Data="{StaticResource ArrowUpIcon}" />
+                        </Button>
+                    </StackPanel>
+
+                    <TextBox Grid.Column="2" x:Name="AddressBox"
+                             Text="{Binding AddressText}"
+                             PlaceholderText="Pfad eingeben …"
+                             VerticalContentAlignment="Center">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding NavigateToAddressCommand}" />
+                            <KeyBinding Gesture="Escape" Command="{Binding ResetAddressCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+
+                    <TextBox Grid.Column="3" x:Name="FilterBox"
+                             Text="{Binding FilterText}"
+                             PlaceholderText="Filter"
+                             VerticalContentAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <DockPanel DockPanel.Dock="Bottom" Margin="8,3">
+                <ProgressBar DockPanel.Dock="Right" Width="80" MinWidth="0"
+                             IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
+                <TextBlock Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+
+            <DataGrid x:Name="FileGrid"
+                      ItemsSource="{Binding Entries}"
+                      SelectedItem="{Binding SelectedEntry}"
+                      SelectionMode="Extended"
+                      IsReadOnly="True"
+                      CanUserSortColumns="True"
+                      CanUserResizeColumns="True"
+                      CanUserReorderColumns="True"
+                      GridLinesVisibility="None"
+                      HeadersVisibility="Column">
+
+                <DataGrid.ContextMenu>
+                    <!-- DataContext wird im Code auf das MainWindowViewModel gesetzt -->
+                    <ContextMenu x:Name="GridMenu" x:DataType="vm:MainWindowViewModel">
+                        <MenuItem Header="Öffnen" Command="{Binding OpenSelectedCommand}" InputGesture="Enter" />
+                        <Separator />
+                        <MenuItem Header="Kopieren ins andere Fenster …" Command="{Binding CopyToOtherCommand}" InputGesture="F5" />
+                        <MenuItem Header="Verschieben ins andere Fenster …" Command="{Binding MoveToOtherCommand}" InputGesture="F6" />
+                        <Separator />
+                        <MenuItem Header="Ausschneiden" Command="{Binding ClipboardCutCommand}" InputGesture="Ctrl+X" />
+                        <MenuItem Header="Kopieren" Command="{Binding ClipboardCopyCommand}" InputGesture="Ctrl+C" />
+                        <MenuItem Header="Einfügen" Command="{Binding PasteCommand}" InputGesture="Ctrl+V" />
+                        <Separator />
+                        <MenuItem Header="Umbenennen …" Command="{Binding RenameCommand}" InputGesture="F2" />
+                        <MenuItem Header="In den Papierkorb" Command="{Binding MoveToTrashCommand}" InputGesture="F8" />
+                        <MenuItem Header="Endgültig löschen" Command="{Binding DeletePermanentlyCommand}" InputGesture="Shift+Delete" />
+                        <Separator />
+                        <MenuItem Header="Neuer Ordner …" Command="{Binding NewFolderCommand}" InputGesture="F7" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" SortMemberPath="Name" Width="*" MinWidth="140">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:FileEntryViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0"
+                                            Opacity="{Binding Opacity}">
+                                    <PathIcon Data="{Binding Icon}" Width="16" Height="16"
+                                              Classes.folder="{Binding IsDirectory}" />
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Größe" SortMemberPath="Size" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:FileEntryViewModel">
+                                <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" Margin="8,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Typ" SortMemberPath="Type" Width="105">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:FileEntryViewModel">
+                                <TextBlock Text="{Binding TypeText}" VerticalAlignment="Center" Margin="8,0"
+                                           TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Geändert am" SortMemberPath="Modified" Width="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:FileEntryViewModel">
+                                <TextBlock Text="{Binding LastModifiedText}" VerticalAlignment="Center" Margin="8,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+    </Border>
+</UserControl>

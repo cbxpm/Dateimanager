@@ -27,7 +27,7 @@ public static class KnownLocations
                 result.Add(new Location(name, path, kind));
         }
 
-        AddFolder("Persönlicher Ordner", home, LocationKind.Home);
+        AddFolder("Benutzerordner", home, LocationKind.Home);
         AddFolder("Desktop", Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
         AddFolder("Dokumente", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
         AddFolder("Downloads", Path.Combine(home, "Downloads"));
