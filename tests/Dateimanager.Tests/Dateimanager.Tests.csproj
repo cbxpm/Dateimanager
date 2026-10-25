@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.1.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Dateimanager\Dateimanager.csproj" />
+    <ProjectReference Include="..\..\src\Dateimanager.Core\Dateimanager.Core.csproj" />
+  </ItemGroup>
+</Project>
