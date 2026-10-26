@@ -13,4 +13,7 @@ public interface IDialogService
 
     /// <summary>Öffnet den Knopf-Editor; liefert null bei Abbruch.</summary>
     Task<ButtonDefinition?> EditButtonAsync(string title, ButtonDefinition button);
+
+    /// <summary>Öffnet den Dialog „Schriftart und Zeilenabstand“; liefert null bei Abbruch.</summary>
+    Task<AppearanceSettings?> EditAppearanceAsync(AppearanceSettings settings);
 }

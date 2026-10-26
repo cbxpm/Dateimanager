@@ -31,9 +31,10 @@ public partial class PaneViewModel : ViewModelBase, IDisposable
     private bool _syncingLocation;
 
     public PaneViewModel(string name, FileSystemService fileSystem, IDialogService dialogs, IShellService shell,
-        IReadOnlyList<LocationViewModel> locations)
+        IReadOnlyList<LocationViewModel> locations, AppearanceViewModel appearance)
     {
         Name = name;
+        Appearance = appearance;
         _fileSystem = fileSystem;
         _dialogs = dialogs;
         _shell = shell;
@@ -55,6 +56,8 @@ public partial class PaneViewModel : ViewModelBase, IDisposable
     public event EventHandler? ActivationRequested;
 
     public string Name { get; }
+
+    public AppearanceViewModel Appearance { get; }
 
     public IReadOnlyList<LocationViewModel> Locations { get; }
 

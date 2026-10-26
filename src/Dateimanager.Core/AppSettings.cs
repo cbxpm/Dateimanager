@@ -10,6 +10,7 @@ public sealed class AppSettings
     public bool ShowHidden { get; set; }
     public List<ButtonBankDefinition> Banks { get; set; } = DefaultButtons.CreateBanks();
     public int ActiveBank { get; set; }
+    public AppearanceSettings Appearance { get; set; } = new();
 
     // Ältere Versionen kannten nur eine Knopfleiste; wird beim Laden in eine Bank übernommen
     [JsonPropertyName("buttons")]
@@ -44,6 +45,7 @@ public sealed class AppSettings
         }
 
         ActiveBank = Math.Clamp(ActiveBank, 0, Banks.Count - 1);
+        Appearance = (Appearance ?? new AppearanceSettings()).Normalized();
     }
 }
 

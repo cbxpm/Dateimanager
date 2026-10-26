@@ -54,7 +54,6 @@
             <Setter Property="CornerRadius" Value="2" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="#50000000" />
-            <Setter Property="FontSize" Value="13" />
         </Style>
         <Style Selector="Button.bank:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{TemplateBinding Background}" />

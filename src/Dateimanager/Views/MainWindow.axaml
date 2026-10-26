@@ -73,6 +73,8 @@
                     <MenuItem Header="Fenster tauschen" Command="{Binding SwapPanesCommand}" InputGesture="Ctrl+U" />
                     <MenuItem Header="Anderes Fenster gleichsetzen" Command="{Binding SyncPanesCommand}" />
                     <MenuItem Header="Aktualisieren" Command="{Binding RefreshCommand}" InputGesture="Ctrl+R" />
+                    <Separator />
+                    <MenuItem Header="Schriftart und Zeilenabstand …" Command="{Binding EditAppearanceCommand}" />
                 </MenuItem>
                 <MenuItem Header="_Knöpfe">
                     <MenuItem Header="Nächste Knopfbank" Command="{Binding ButtonBar.NextBankCommand}" InputGesture="Ctrl+B" />
@@ -118,6 +120,7 @@
             <DockPanel>
                 <Button DockPanel.Dock="Left" x:Name="BankCycleButton" Classes="cycle"
                         Command="{Binding ButtonBar.NextBankCommand}"
+                        FontFamily="{Binding Appearance.ButtonFontFamily}"
                         ToolTip.Tip="Knopfbank wechseln (Strg+B) – Rechtsklick: Bank wählen"
                         Focusable="False">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
@@ -147,7 +150,9 @@
                                IsVisible="{Binding ButtonBar.CurrentBank.IsEmpty}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" Margin="8" />
 
-                    <ItemsControl x:Name="ButtonBankItems" ItemsSource="{Binding ButtonBar.CurrentBank.Buttons}">
+                    <ItemsControl x:Name="ButtonBankItems" ItemsSource="{Binding ButtonBar.CurrentBank.Buttons}"
+                                  FontFamily="{Binding Appearance.ButtonFontFamily}"
+                                  FontSize="{Binding Appearance.ButtonFontSize}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <UniformGrid Columns="{Binding ButtonBar.CurrentBank.Columns}" Rows="{Binding ButtonBar.Rows}" />

@@ -1,0 +1,129 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Dateimanager.ViewModels"
+        x:Class="Dateimanager.Views.AppearanceWindow"
+        x:DataType="vm:AppearanceDialogViewModel"
+        Title="Schriftart und Zeilenabstand"
+        Width="720" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <!-- Schriftliste mit Suchfeld; jede Schrift wird in sich selbst dargestellt -->
+        <DataTemplate x:Key="FontChoiceTemplate" x:DataType="vm:FontChoiceViewModel">
+            <DockPanel>
+                <TextBox DockPanel.Dock="Top" Margin="0,0,0,6" Text="{Binding Filter}"
+                         PlaceholderText="Schrift suchen …" />
+                <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" Opacity="0.7" FontSize="12"
+                           Text="{Binding ChosenFamily, StringFormat='Gewählt: {0}'}" TextTrimming="CharacterEllipsis" />
+                <ListBox Height="280" ItemsSource="{Binding FilteredFamilies}"
+                         SelectedItem="{Binding SelectedFamily}">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="8,3" />
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FontOption">
+                            <TextBlock Text="{Binding Name}" FontFamily="{Binding Family}" FontSize="15"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Window.Styles>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style Selector="Border.preview">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Margin="20" Spacing="14">
+        <TabControl x:Name="Tabs">
+            <TabItem Header="Dateilisten">
+                <Grid ColumnDefinitions="*,250" ColumnSpacing="20" Margin="0,10,0,0">
+                    <ContentControl Content="{Binding ListFont}" ContentTemplate="{StaticResource FontChoiceTemplate}" />
+
+                    <StackPanel Grid.Column="1" Spacing="14">
+                        <StackPanel>
+                            <TextBlock Classes="caption" Text="Größe" />
+                            <NumericUpDown x:Name="ListSizeBox" Value="{Binding ListFont.Size}"
+                                           Minimum="{Binding ListFont.MinSize}" Maximum="{Binding ListFont.MaxSize}"
+                                           Increment="1" FormatString="0" />
+                        </StackPanel>
+
+                        <StackPanel>
+                            <TextBlock Classes="caption" Text="Zeilenabstand" />
+                            <RadioButton GroupName="spacing" Content="Kompakt" IsChecked="{Binding IsCompact}" />
+                            <RadioButton GroupName="spacing" Content="Normal" IsChecked="{Binding IsNormal}" />
+                            <RadioButton GroupName="spacing" Content="Weit" IsChecked="{Binding IsWide}" />
+                        </StackPanel>
+
+                        <StackPanel>
+                            <TextBlock Classes="caption" Text="Vorschau" />
+                            <Border Classes="preview">
+                                <ItemsControl ItemsSource="{Binding PreviewRows}" ClipToBounds="True">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Text="{Binding}" Padding="6,0" VerticalAlignment="Center"
+                                                       Height="{Binding $parent[Window].((vm:AppearanceDialogViewModel)DataContext).PreviewRowHeight}"
+                                                       FontFamily="{Binding $parent[Window].((vm:AppearanceDialogViewModel)DataContext).ListFont.PreviewFamily}"
+                                                       FontSize="{Binding $parent[Window].((vm:AppearanceDialogViewModel)DataContext).ListFont.PreviewSize}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Knopfleiste">
+                <Grid ColumnDefinitions="*,250" ColumnSpacing="20" Margin="0,10,0,0">
+                    <ContentControl Content="{Binding ButtonFont}" ContentTemplate="{StaticResource FontChoiceTemplate}" />
+
+                    <StackPanel Grid.Column="1" Spacing="14">
+                        <StackPanel>
+                            <TextBlock Classes="caption" Text="Größe" />
+                            <NumericUpDown Value="{Binding ButtonFont.Size}"
+                                           Minimum="{Binding ButtonFont.MinSize}" Maximum="{Binding ButtonFont.MaxSize}"
+                                           Increment="1" FormatString="0" />
+                        </StackPanel>
+
+                        <StackPanel>
+                            <TextBlock Classes="caption" Text="Vorschau" />
+                            <UniformGrid Columns="2">
+                                <Button Classes="bank" Content="Kopieren" Background="#3B5BA5" Foreground="White"
+                                        FontFamily="{Binding ButtonFont.PreviewFamily}" FontSize="{Binding ButtonFont.PreviewSize}" />
+                                <Button Classes="bank" Content="Löschen" Background="#A53B3B" Foreground="White"
+                                        FontFamily="{Binding ButtonFont.PreviewFamily}" FontSize="{Binding ButtonFont.PreviewSize}" />
+                                <Button Classes="bank" Content="Alles" Background="#B4B4B4" Foreground="Black"
+                                        FontFamily="{Binding ButtonFont.PreviewFamily}" FontSize="{Binding ButtonFont.PreviewSize}" />
+                                <Button Classes="bank" Content="Terminal" Background="#E0A040" Foreground="Black"
+                                        FontFamily="{Binding ButtonFont.PreviewFamily}" FontSize="{Binding ButtonFont.PreviewSize}" />
+                            </UniformGrid>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <DockPanel>
+            <Button DockPanel.Dock="Left" Content="Standard wiederherstellen" Command="{Binding ResetToDefaultsCommand}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Classes="accent" Content="OK" MinWidth="90" IsDefault="True" Command="{Binding SaveCommand}"
+                        HorizontalContentAlignment="Center" />
+                <Button Content="Abbrechen" MinWidth="90" IsCancel="True" Command="{Binding CancelCommand}"
+                        HorizontalContentAlignment="Center" />
+            </StackPanel>
+        </DockPanel>
+    </StackPanel>
+</Window>

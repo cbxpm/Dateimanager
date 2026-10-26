@@ -25,8 +25,14 @@
         <Style Selector="Border.pane.active Border.stripe">
             <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
         </Style>
+        <!-- Das Fluent-Theme erzwingt 32 px hohe Zellen; die Höhe kommt stattdessen aus RowHeight -->
         <Style Selector="DataGridCell">
             <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="DataGridColumnHeader">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="8,3" />
         </Style>
     </UserControl.Styles>
 
@@ -93,7 +99,10 @@
                       CanUserResizeColumns="True"
                       CanUserReorderColumns="True"
                       GridLinesVisibility="None"
-                      HeadersVisibility="Column">
+                      HeadersVisibility="Column"
+                      FontFamily="{Binding Appearance.ListFontFamily}"
+                      FontSize="{Binding Appearance.ListFontSize}"
+                      RowHeight="{Binding Appearance.RowHeight}">
 
                 <DataGrid.ContextMenu>
                     <!-- DataContext wird im Code auf das MainWindowViewModel gesetzt -->
@@ -121,7 +130,9 @@
                             <DataTemplate x:DataType="vm:FileEntryViewModel">
                                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0"
                                             Opacity="{Binding Opacity}">
-                                    <PathIcon Data="{Binding Icon}" Width="16" Height="16"
+                                    <PathIcon Data="{Binding Icon}"
+                                              Width="{Binding $parent[DataGrid].FontSize}"
+                                              Height="{Binding $parent[DataGrid].FontSize}"
                                               Classes.folder="{Binding IsDirectory}" />
                                     <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis" />
@@ -130,7 +141,7 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="Größe" SortMemberPath="Size" Width="80">
+                    <DataGridTemplateColumn Header="Größe" SortMemberPath="Size" Width="90">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="vm:FileEntryViewModel">
                                 <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Right"

@@ -8,6 +8,7 @@ internal sealed class FakeDialogService : IDialogService
 {
     public Queue<string?> PromptAnswers { get; } = new();
     public Queue<ButtonDefinition?> ButtonAnswers { get; } = new();
+    public Queue<AppearanceSettings?> AppearanceAnswers { get; } = new();
     public bool ConfirmAnswer { get; set; } = true;
     public List<string> Errors { get; } = [];
     public List<string> Prompts { get; } = [];
@@ -31,6 +32,9 @@ internal sealed class FakeDialogService : IDialogService
 
     public Task<ButtonDefinition?> EditButtonAsync(string title, ButtonDefinition button) =>
         Task.FromResult(ButtonAnswers.Dequeue());
+
+    public Task<AppearanceSettings?> EditAppearanceAsync(AppearanceSettings settings) =>
+        Task.FromResult(AppearanceAnswers.Dequeue());
 }
 
 internal sealed class FakeTrash : ITrashService

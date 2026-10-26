@@ -19,9 +19,20 @@ Ein plattformübergreifender Dateimanager für Windows, Linux und macOS, gebaut 
   umschaltbar über den Umschalter links neben den Knöpfen. Rechtsklick auf einen Knopf zum Bearbeiten,
   Duplizieren, Verschieben (auch in eine andere Bank) oder Entfernen.
 - **Papierkorb:** Windows-Papierkorb, freedesktop.org-Papierkorb unter Linux, `~/.Trash` unter macOS.
+- **Schriftart und Zeilenabstand:** eigene Schrift und Größe für Dateilisten und Knopfleiste,
+  Zeilenabstand *Kompakt* (Standard), *Normal* oder *Weit* – Menü *Ansicht › Schriftart und Zeilenabstand …*
 - Sortierung per Spaltenkopf (Ordner bleiben oben), Mehrfachauswahl, versteckte Dateien,
   automatische Aktualisierung, Kontextmenü.
 - Knöpfe, zuletzt geöffnete Ordner und Einstellungen werden gespeichert.
+
+### Schriftart und Zeilenabstand
+
+![Schriftart-Dialog](docs/schrift-dialog.png)
+
+Im Dialog lassen sich Schriftart und -größe getrennt für die **Dateilisten** und die **Knopfleiste**
+wählen; die Liste der installierten Schriften ist durchsuchbar und zeigt jede Schrift in sich selbst.
+Die Zeilenhöhe der Dateilisten ergibt sich aus Schriftgröße und Zeilenabstand (bei 13 pt:
+Kompakt 21 px, Normal 27 px, Weit 33 px).
 
 ### Knopfbänke
 

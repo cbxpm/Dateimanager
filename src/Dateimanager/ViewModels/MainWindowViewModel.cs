@@ -30,6 +30,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _settingsStore = settingsStore;
         _settings = settings;
 
+        Appearance = new AppearanceViewModel(settings.Appearance);
         var locationViewModels = (locations ?? KnownLocations.Get()).Select(l => new LocationViewModel(l)).ToList();
         Left = CreatePane("Links", locationViewModels);
         Right = CreatePane("Rechts", locationViewModels);
@@ -42,6 +43,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public PaneViewModel Left { get; }
     public PaneViewModel Right { get; }
     public ButtonBarViewModel ButtonBar { get; }
+    public AppearanceViewModel Appearance { get; }
 
     [ObservableProperty]
     public partial PaneViewModel ActivePane { get; set; }
@@ -148,6 +150,17 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private void SwitchPane() => ActivePane = InactivePane;
+
+    [RelayCommand]
+    private async Task EditAppearanceAsync()
+    {
+        if (await _dialogs.EditAppearanceAsync(Appearance.Settings) is not { } appearance)
+            return;
+
+        Appearance.Apply(appearance);
+        _settings.Appearance = Appearance.Settings;
+        SaveSettings();
+    }
 
     [RelayCommand]
     private Task SwapPanesAsync()
@@ -324,7 +337,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     private PaneViewModel CreatePane(string name, IReadOnlyList<LocationViewModel> locations)
     {
-        var pane = new PaneViewModel(name, _fileSystem, _dialogs, _shell, locations);
+        var pane = new PaneViewModel(name, _fileSystem, _dialogs, _shell, locations, Appearance);
         pane.ActivationRequested += (_, _) => ActivePane = pane;
         pane.SelectionChanged += (_, _) =>
         {

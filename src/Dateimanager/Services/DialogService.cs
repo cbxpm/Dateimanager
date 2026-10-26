@@ -72,6 +72,9 @@ public sealed class DialogService(Window owner) : IDialogService
     public Task<ButtonDefinition?> EditButtonAsync(string title, ButtonDefinition button) =>
         ButtonEditorWindow.ShowAsync(owner, title, button);
 
+    public Task<AppearanceSettings?> EditAppearanceAsync(AppearanceSettings settings) =>
+        AppearanceWindow.ShowAsync(owner, settings);
+
     private static Window CreateDialog(string title, string message, out StackPanel buttons,
         params Control[] content)
     {
