@@ -20,7 +20,7 @@ internal sealed class TempDirectory : IDisposable
 
     public string Dir(string relativePath) => Directory.CreateDirectory(Combine(relativePath)).FullName;
 
-    public string Combine(string relativePath) => System.IO.Path.Combine(Path, relativePath);
+    public string Combine(string relativePath) => System.IO.Path.Combine(Path, relativePath.Replace('/', System.IO.Path.DirectorySeparatorChar));
 
     public void Dispose()
     {
