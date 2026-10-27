@@ -25,6 +25,20 @@
         <Style Selector="Border.pane.active Border.stripe">
             <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
         </Style>
+        <!-- Randleisten neben der Liste: Klick = übergeordneter Ordner (wie in Directory Opus 4) -->
+        <Style Selector="Border.parentStrip">
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip.Tip" Value="Übergeordneter Ordner (Klick) – Wurzelverzeichnis (Rechtsklick)" />
+        </Style>
+        <Style Selector="Border.parentStrip:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListAccentLowBrush}" />
+        </Style>
+        <Style Selector="Border.pane.active Border.parentStrip:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
+
         <!-- Das Fluent-Theme erzwingt 32 px hohe Zellen; die Höhe kommt stattdessen aus RowHeight -->
         <Style Selector="DataGridCell">
             <Setter Property="FocusAdorner" Value="{x:Null}" />
@@ -89,6 +103,9 @@
                              IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
                 <TextBlock Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis" />
             </DockPanel>
+
+            <Border DockPanel.Dock="Left" x:Name="ParentStripLeft" Classes="parentStrip" />
+            <Border DockPanel.Dock="Right" x:Name="ParentStripRight" Classes="parentStrip" />
 
             <DataGrid x:Name="FileGrid"
                       ItemsSource="{Binding Entries}"

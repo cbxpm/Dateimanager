@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -113,6 +114,53 @@ public sealed class MainWindowTests : IDisposable
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(2, grid.SelectedItems.Count);
         Assert.Equal(2, _env.Left.Selection.Count);
+        window.Close();
+    }
+
+    private static void Click(MainWindow window, Control target, MouseButton button)
+    {
+        var point = target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(point, button);
+        window.MouseUp(point, button);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaTheory]
+    [InlineData("LeftPane", "ParentStripLeft")]
+    [InlineData("LeftPane", "ParentStripRight")]
+    [InlineData("RightPane", "ParentStripLeft")]
+    public async Task ParentStrip_ClickGoesToParentAndActivatesPane(string paneName, string stripName)
+    {
+        var deep = _env.Temp.Dir("a/b");
+        var window = await ShowAsync(deep, deep);
+        var paneView = window.FindControl<PaneView>(paneName)!;
+        var pane = paneName == "LeftPane" ? _env.Left : _env.Right;
+        var strip = paneView.FindControl<Border>(stripName)!;
+        Assert.True(strip.Bounds.Width > 0);
+
+        Click(window, strip, MouseButton.Left);
+        await Task.Delay(50);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(_env.Temp.Combine("a"), pane.CurrentPath);
+        Assert.Equal("b", pane.SelectedEntry?.Name);
+        Assert.Same(pane, _env.ViewModel.ActivePane);
+        Assert.Equal(deep, (paneName == "LeftPane" ? _env.Right : _env.Left).CurrentPath);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task ParentStrip_RightClickGoesToRoot()
+    {
+        var deep = _env.Temp.Dir("a/b");
+        var window = await ShowAsync(deep, deep);
+        var strip = window.FindControl<PaneView>("LeftPane")!.FindControl<Border>("ParentStripLeft")!;
+
+        Click(window, strip, MouseButton.Right);
+        await Task.Delay(50);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(Path.GetPathRoot(deep), _env.Left.CurrentPath);
         window.Close();
     }
 

@@ -36,6 +36,9 @@ public partial class PaneView : UserControl
         FileGrid.AddHandler(KeyDownEvent, OnGridKeyDown, RoutingStrategies.Tunnel);
         FileGrid.AddHandler(PointerPressedEvent, OnGridPointerPressed, RoutingStrategies.Tunnel);
 
+        ParentStripLeft.PointerPressed += OnParentStripPressed;
+        ParentStripRight.PointerPressed += OnParentStripPressed;
+
         // Jeder Klick oder Fokus im Fenster macht es zum aktiven Fenster
         AddHandler(PointerPressedEvent, (_, _) => _pane?.RequestActivation(), RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(GotFocusEvent, (_, _) => _pane?.RequestActivation(), RoutingStrategies.Bubble, handledEventsToo: true);
@@ -111,6 +114,23 @@ public partial class PaneView : UserControl
         }
 
         _pane?.SetSelection(FileGrid.SelectedItems.OfType<FileEntryViewModel>());
+    }
+
+    private void OnParentStripPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_pane is null)
+            return;
+
+        var properties = e.GetCurrentPoint(this).Properties;
+        if (properties.IsLeftButtonPressed)
+            _ = _pane.GoUpAsync();
+        else if (properties.IsRightButtonPressed)
+            _ = _pane.GoRootAsync();
+        else
+            return;
+
+        FileGrid.Focus();
+        e.Handled = true;
     }
 
     private void OnGridSorting(object? sender, DataGridColumnEventArgs e)

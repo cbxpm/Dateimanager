@@ -12,6 +12,8 @@ Ein plattformübergreifender Dateimanager für Windows, Linux und macOS, gebaut 
 - **Zwei Dateifenster:** jedes mit eigener Ortsauswahl (Benutzerordner, Bilder, Laufwerke …),
   Zurück/Vorwärts-Verlauf, Adressleiste (auch `~`), Filter und Statuszeile mit freiem Speicherplatz.
   Das aktive Fenster ist blau umrandet; **Tab** wechselt.
+- **Randleisten wie in Directory Opus 4:** Ein Klick auf den schmalen Streifen links oder rechts neben
+  einer Dateiliste wechselt in den übergeordneten Ordner, ein Rechtsklick ins Wurzelverzeichnis.
 - **Total-Commander-Bedienung:** F5 kopiert und F6 verschiebt die Auswahl ins andere Fenster
   (Ziel lässt sich im Dialog ändern), F7 neuer Ordner, F8/Entf in den Papierkorb, F2/Umschalt+F6 umbenennen.
 - **Knopfbänke:** Knöpfe mit eigener Beschriftung und eigenen Farben, die entweder einen eingebauten
@@ -84,7 +86,8 @@ bzw. `~/.config/Dateimanager/settings.json` (Linux/macOS) und können auch von H
 | --- | --- |
 | Tab | Anderes Fenster aktivieren |
 | Enter / Doppelklick | Öffnen |
-| Rücktaste, Alt+Hoch | Übergeordneter Ordner |
+| Rücktaste, Alt+Hoch, Klick auf Randleiste | Übergeordneter Ordner |
+| Rechtsklick auf Randleiste | Wurzelverzeichnis |
 | Alt+Links / Alt+Rechts | Zurück / Vorwärts |
 | F2, Umschalt+F6 | Umbenennen |
 | F5 / F6 | Kopieren / Verschieben ins andere Fenster |
