@@ -37,7 +37,7 @@ jobs:
         run: dotnet test -c Release --no-build
 
       - name: Publish
-        run: dotnet publish src/Dateimanager -c Release -r ${{ matrix.rid }} --self-contained -o publish/${{ matrix.rid }} --no-build
+        run: dotnet publish src/Dateimanager -c Release -r ${{ matrix.rid }} --self-contained -o publish/${{ matrix.rid }}
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
