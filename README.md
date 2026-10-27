@@ -117,6 +117,10 @@ Eigenständige Anwendung veröffentlichen, z. B. für Windows:
 dotnet publish src/Dateimanager -c Release -r win-x64 --self-contained
 ```
 
+CI baut bei jedem Push und Pull Request für `win-x64` und `linux-x64` (Self-Contained, als ZIP-Artefakt).
+Auf einen Tag der Form `v*` (z. B. `v1.0.0`) legt der Workflow zusätzlich eine GitHub-Release
+mit beiden ZIPs an.
+
 ## Aufbau
 
 ```
