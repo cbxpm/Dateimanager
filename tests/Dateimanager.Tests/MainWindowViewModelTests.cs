@@ -184,7 +184,7 @@ public sealed class MainWindowViewModelTests : IDisposable
 
         var run = Assert.Single(_env.Shell.Runs);
         Assert.Equal("tar", run.Program);
-        Assert.Equal(["-czf", System.IO.Path.Combine(right, "archiv.tgz"), a, c], run.Arguments);
+        Assert.Equal(["-czf", $"{right}/archiv.tgz", a, c], run.Arguments);
         Assert.Equal(Temp.Combine("links"), run.WorkingDirectory);
     }
 
