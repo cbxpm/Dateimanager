@@ -165,6 +165,41 @@ public sealed class MainWindowTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task Escape_InListGoesToParent()
+    {
+        var deep = _env.Temp.Dir("a/b");
+        var window = await ShowAsync(deep, deep);
+        window.FindControl<PaneView>("LeftPane")!.FocusGrid();
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        await Task.Delay(50);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(_env.Temp.Combine("a"), _env.Left.CurrentPath);
+        Assert.Equal("b", _env.Left.SelectedEntry?.Name);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Escape_InAddressBarOnlyResetsInput()
+    {
+        var deep = _env.Temp.Dir("a/b");
+        var window = await ShowAsync(deep, deep);
+        window.FindControl<PaneView>("LeftPane")!.FocusAddress();
+        _env.Left.AddressText = "/irgendwo";
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        await Task.Delay(50);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(deep, _env.Left.CurrentPath);
+        Assert.Equal(deep, _env.Left.AddressText);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task TabSwitchesActivePane()
     {
         var window = await ShowAsync(_env.Temp.Path, _env.Temp.Path);

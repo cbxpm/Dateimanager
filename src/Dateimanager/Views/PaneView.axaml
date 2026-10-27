@@ -30,7 +30,7 @@
             <Setter Property="Width" Value="9" />
             <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="ToolTip.Tip" Value="Übergeordneter Ordner (Klick) – Wurzelverzeichnis (Rechtsklick)" />
+            <Setter Property="ToolTip.Tip" Value="Übergeordneter Ordner (Klick, Esc) – Wurzelverzeichnis (Rechtsklick)" />
         </Style>
         <Style Selector="Border.parentStrip:pointerover">
             <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListAccentLowBrush}" />
@@ -76,7 +76,7 @@
                         <Button Classes="tool" Command="{Binding GoForwardCommand}" ToolTip.Tip="Vorwärts (Alt+Rechts)" Focusable="False">
                             <PathIcon Data="{StaticResource ArrowRightIcon}" />
                         </Button>
-                        <Button Classes="tool" Command="{Binding GoUpCommand}" ToolTip.Tip="Übergeordneter Ordner (Rücktaste)" Focusable="False">
+                        <Button Classes="tool" Command="{Binding GoUpCommand}" ToolTip.Tip="Übergeordneter Ordner (Esc, Rücktaste)" Focusable="False">
                             <PathIcon Data="{StaticResource ArrowUpIcon}" />
                         </Button>
                     </StackPanel>

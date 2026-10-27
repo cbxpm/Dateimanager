@@ -86,7 +86,7 @@ bzw. `~/.config/Dateimanager/settings.json` (Linux/macOS) und können auch von H
 | --- | --- |
 | Tab | Anderes Fenster aktivieren |
 | Enter / Doppelklick | Öffnen |
-| Rücktaste, Alt+Hoch, Klick auf Randleiste | Übergeordneter Ordner |
+| Esc, Rücktaste, Alt+Hoch, Klick auf Randleiste | Übergeordneter Ordner |
 | Rechtsklick auf Randleiste | Wurzelverzeichnis |
 | Alt+Links / Alt+Rechts | Zurück / Vorwärts |
 | F2, Umschalt+F6 | Umbenennen |

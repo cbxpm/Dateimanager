@@ -32,7 +32,7 @@ public partial class PaneView : UserControl
         };
         FileGrid.DoubleTapped += OnGridDoubleTapped;
         FileGrid.Sorting += OnGridSorting;
-        // Tunnel-Handler, weil das DataGrid Enter/Rücktaste sonst selbst verarbeitet
+        // Tunnel-Handler, weil das DataGrid Enter/Rücktaste/Esc sonst selbst verarbeitet
         FileGrid.AddHandler(KeyDownEvent, OnGridKeyDown, RoutingStrategies.Tunnel);
         FileGrid.AddHandler(PointerPressedEvent, OnGridPointerPressed, RoutingStrategies.Tunnel);
 
@@ -182,6 +182,7 @@ public partial class PaneView : UserControl
         {
             (Key.Enter, KeyModifiers.None) => _host.OpenSelectedCommand,
             (Key.Back, KeyModifiers.None) => _pane.GoUpCommand,
+            (Key.Escape, KeyModifiers.None) => _pane.GoUpCommand,
             (Key.Delete, KeyModifiers.None) => _host.MoveToTrashCommand,
             (Key.Delete, KeyModifiers.Shift) => _host.DeletePermanentlyCommand,
             (Key.C, KeyModifiers.Control) => _host.ClipboardCopyCommand,
